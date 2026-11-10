@@ -216,10 +216,11 @@ elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
         st.warning("دفترکل فعلاً فقط در حافظه نشست است. برای ذخیره دائمی، NEXUS_LEDGER_KEY و NEXUS_LEDGER_PATH را در محیط سرور تنظیم کنید.")
 
     if not pool.investors and not pool.started:
+        manager_options = sorted(set([0, 500, 1000, 1500, 2000, pool.manager_profit_share_bps]))
         manager_share = st.selectbox(
             "سهم مدیر از سود جدیدِ تحقق‌یافته",
-            [0, 500, 1000, 1500, 2000],
-            index=[0, 500, 1000, 1500, 2000].index(pool.manager_profit_share_bps),
+            manager_options,
+            index=manager_options.index(pool.manager_profit_share_bps),
             format_func=lambda value: f"{value / 100:.1f}%",
             key="pool_manager_share",
         )
