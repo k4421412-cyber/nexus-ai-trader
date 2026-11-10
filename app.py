@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 from nexus.market_data import fetch_ohlcv
@@ -13,8 +14,15 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap');
 html, body, [class*="css"] {font-family: Vazirmatn, sans-serif;}
-.block-container {direction: rtl; text-align: right;}
+.block-container {direction: rtl; text-align: right; max-width: 100%; padding-left: 1rem; padding-right: 1rem;}
 [data-testid="stSidebar"] {direction: rtl;}
+[data-testid="stDataFrame"], [data-testid="stTable"] {max-width: 100%; overflow-x: auto;}
+.stButton button, [data-testid="stDownloadButton"] button {min-height: 44px;}
+@media (max-width: 640px) {
+  .block-container {padding-left: 0.65rem; padding-right: 0.65rem;}
+  [data-testid="stMetric"] {overflow-wrap: anywhere;}
+  h1 {font-size: 1.65rem;}
+}
 </style>
 """, unsafe_allow_html=True)
 st.title("🚀 NEXUS AI TRADER")
@@ -27,8 +35,20 @@ if "wallet" not in st.session_state:
     st.session_state.wallet = PaperWallet()
 if "notes" not in st.session_state:
     st.session_state.notes = load_notes()
+def create_investment_pool(manager_share=None):
+    ledger_key = os.environ.get("NEXUS_LEDGER_KEY")
+    if ledger_key:
+        ledger_path = os.environ.get("NEXUS_LEDGER_PATH", "data/investment-ledger.enc")
+        return SimulatedInvestmentPool(
+            manager_profit_share_bps=manager_share,
+            ledger_path=ledger_path,
+            encryption_key=ledger_key,
+        )
+    return SimulatedInvestmentPool(manager_profit_share_bps=manager_share)
+
+
 if "investment_pool" not in st.session_state:
-    st.session_state.investment_pool = SimulatedInvestmentPool()
+    st.session_state.investment_pool = create_investment_pool()
 
 if page == "داشبورد":
     st.subheader("داشبورد")
@@ -190,20 +210,25 @@ elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
         "زیان نیز مانند سود، متناسب با سهم سرمایه مجازی هر فرد تقسیم می‌شود."
     )
     pool = st.session_state.investment_pool
+    if pool.persistent:
+        st.success("دفترکل روی دیسک ذخیره و با Fernet رمزنگاری می‌شود.")
+    else:
+        st.warning("دفترکل فعلاً فقط در حافظه نشست است. برای ذخیره دائمی، NEXUS_LEDGER_KEY و NEXUS_LEDGER_PATH را در محیط سرور تنظیم کنید.")
 
     if not pool.investors and not pool.started:
         manager_share = st.selectbox(
             "سهم مدیر از سود جدیدِ تحقق‌یافته",
             [0, 500, 1000, 1500, 2000],
+            index=[0, 500, 1000, 1500, 2000].index(pool.manager_profit_share_bps),
             format_func=lambda value: f"{value / 100:.1f}%",
             key="pool_manager_share",
         )
         if st.button("ثبت تنظیم سهم مدیر"):
-            st.session_state.investment_pool = SimulatedInvestmentPool(
-                manager_profit_share_bps=manager_share
-            )
-            st.success("تنظیمات استخر مجازی ثبت شد.")
-            pool = st.session_state.investment_pool
+            try:
+                pool.set_manager_profit_share(manager_share)
+                st.success("تنظیمات استخر مجازی ثبت شد.")
+            except ValueError as e:
+                st.error(str(e))
 
     st.markdown("#### افزودن سرمایه‌گذار مجازی")
     st.caption("هر فرد فقط یک بار و پیش از اولین معامله شبیه‌سازی‌شده به این استخر اضافه می‌شود.")
@@ -268,7 +293,9 @@ elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
         "محاسبات با Decimal انجام می‌شوند. سهم مدیر فقط از سود خالص جدید بالاتر از سقف قبلی "
         "(High-Water Mark) محاسبه می‌شود؛ بازیابی زیان قبلی دوباره مشمول سهم مدیر نیست. "
         "برای سادگی MVP، افزودن سرمایه جدید پس از اولین معامله و برداشت هنوز پشتیبانی نمی‌شود. "
-        "اطلاعات این محیط با پایان نشست ممکن است از بین برود و دفترکل فعلاً ذخیره‌سازی دائمی یا امضای رمزنگاری‌شده ندارد."
+        ("دفترکل با رمزنگاری احرازاصالت‌شده Fernet ذخیره شده و زنجیره هش رویدادها نیز بررسی می‌شود."
+         if pool.persistent else
+         "ذخیره دائمی فعال نیست؛ با پایان نشست ممکن است اطلاعات از بین برود.")
     )
 
 elif page == "اتصالات":
