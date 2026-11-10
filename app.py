@@ -65,8 +65,52 @@ elif page == "آزمایشگاه استراتژی":
             df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 500))
             signals = ema_rsi_signals(df)
             result = backtest(df, signals, fee, slippage)
-            st.json(result)
-            st.caption("این بک‌تست نمونه و ساده است؛ آزمون خارج از نمونه و walk-forward کامل نیست.")
+            st.markdown("### نتیجه بک‌تست")
+            st.caption(
+                f"بازار: {exchange.upper()} | نماد: {symbol.upper()} | "
+                f"تایم‌فریم: {timeframe} | تعداد کندل: {len(df)}"
+            )
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("ارزش نهایی", f"{result['final_balance']:,.2f} USDT")
+            m2.metric("بازده خالص", f"{result['net_return_pct']:.2f}%")
+            m3.metric("تعداد معاملات بسته‌شده", result["closed_trade_count"])
+
+            m4, m5, m6 = st.columns(3)
+            m4.metric("نرخ برد", f"{result['win_rate_pct']:.2f}%")
+            m5.metric("بیشترین افت سرمایه", f"{result['max_drawdown_pct']:.2f}%")
+            pf = result["profit_factor"]
+            m6.metric("Profit Factor", str(pf) if pf is not None else "—")
+
+            st.markdown("#### نمودار ارزش سرمایه")
+            equity = pd.DataFrame({
+                "شماره کندل": range(len(result["equity_curve"])),
+                "ارزش سرمایه (USDT)": result["equity_curve"],
+            }).set_index("شماره کندل")
+            st.line_chart(equity, use_container_width=True)
+
+            if result["open_position"]:
+                st.info(
+                    f"در پایان بازه یک موقعیت باز وجود دارد؛ "
+                    f"تعداد واحد: {result['open_position_units']}"
+                )
+            else:
+                st.caption("در پایان بازه موقعیت بازی وجود ندارد.")
+
+            st.markdown("#### جزئیات معاملات بسته‌شده")
+            if result["closed_trades"]:
+                trades = pd.DataFrame(result["closed_trades"])
+                trades.index = range(1, len(trades) + 1)
+                trades.index.name = "معامله"
+                st.dataframe(trades, use_container_width=True)
+            else:
+                st.info("در بازه انتخاب‌شده هیچ معامله‌ای بسته نشده است.")
+
+            st.caption(
+                "هزینه کارمزد و لغزش قیمت در محاسبات لحاظ شده‌اند. "
+                "این گزارش بک‌تست تاریخی است و سود آینده را تضمین نمی‌کند؛ "
+                "آزمون خارج از نمونه و walk-forward هنوز کامل نشده است."
+            )
         except Exception as e:
             st.error(str(e))
 
