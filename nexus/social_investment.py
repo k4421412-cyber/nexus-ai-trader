@@ -216,7 +216,7 @@ class SimulatedInvestmentPool:
             self.ledger.pop()
             raise
 
-    @_serialize_mutation
+    @_serialize_access
     def set_manager_profit_share(self, basis_points):
         if isinstance(basis_points, bool) or not isinstance(basis_points, int) or not 0 <= basis_points <= 10000:
             raise ValueError("manager profit share must be an integer between 0 and 10000")
@@ -230,7 +230,7 @@ class SimulatedInvestmentPool:
             self.manager_profit_share_bps = previous
             raise
 
-    @_serialize_mutation
+    @_serialize_access
     def add_investor(self, investor_id, contribution):
         if self.started:
             raise ValueError("New allocations are disabled after the first simulated trade")
@@ -250,7 +250,7 @@ class SimulatedInvestmentPool:
             raise
         return self.investor_report(investor_id)
 
-    @_serialize_mutation
+    @_serialize_access
     def record_trade(self, realized_pnl, fees=0):
         if not self.investors:
             raise ValueError("Add at least one virtual investor before recording trades")
@@ -301,7 +301,7 @@ class SimulatedInvestmentPool:
             raise
         return self.summary()
 
-    @_serialize_mutation
+    @_serialize_access
     def withdraw_virtual(self, investor_id, amount):
         if investor_id not in self.investors:
             raise KeyError("Unknown investor")
