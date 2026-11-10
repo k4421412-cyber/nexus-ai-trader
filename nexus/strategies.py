@@ -1,5 +1,3 @@
-import math
-
 import numpy as np
 import pandas as pd
 
@@ -9,10 +7,20 @@ def ema_rsi_signals(df):
     missing = required.difference(df.columns)
     if missing:
         raise ValueError(f"Missing signal columns: {', '.join(sorted(missing))}")
+    market = df.copy()
+    for column in required:
+        market[column] = pd.to_numeric(market[column], errors="coerce")
+    values = market[["ema20", "ema50", "rsi"]].to_numpy(dtype=float)
+    if not np.isfinite(values).all():
+        raise ValueError("Signal indicators must be numeric and finite")
+    if (market[["ema20", "ema50"]] <= 0).any().any():
+        raise ValueError("EMA values must be positive")
+    if ((market["rsi"] < 0) | (market["rsi"] > 100)).any():
+        raise ValueError("RSI values must be between 0 and 100")
     buy = (
-        (df["ema20"] > df["ema50"])
-        & (df["ema20"].shift() <= df["ema50"].shift())
-        & (df["rsi"] < 70)
+        (market["ema20"] > market["ema50"])
+        & (market["ema20"].shift() <= market["ema50"].shift())
+        & (market["rsi"] < 70)
     )
     return buy.fillna(False)
 
