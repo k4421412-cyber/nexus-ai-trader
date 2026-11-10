@@ -138,10 +138,17 @@ elif page == "مرکز سیگنال‌ها":
             # The newest exchange candle may still be forming; use the last completed candle.
             closed_candle = df.iloc[-2]
             sig = ema_rsi_signals(df).iloc[-2]
-            st.write("وضعیت:", "BUY" if sig else "NO TRADE")
+            if sig:
+                st.success("سیگنال فعلی: BUY")
+            else:
+                st.info("سیگنال فعلی: NO TRADE")
             st.write("زمان آخرین کندل بسته‌شده:", str(closed_candle["timestamp"]))
             st.write("استراتژی: EMA20/EMA50 + RSI")
-            st.caption("برای جلوگیری از سیگنال ناپایدار، کندل در حال تشکیل در محاسبه این وضعیت استفاده نمی‌شود.")
+            st.caption(
+                "نسخه فعلی فقط سیگنال ورود خرید (Long) تولید می‌کند؛ "
+                "NO TRADE به معنی نبود شرط ورود است، نه سیگنال فروش. "
+                "برای جلوگیری از سیگنال ناپایدار، کندل در حال تشکیل استفاده نمی‌شود."
+            )
         except Exception as e:
             st.error(str(e))
 
