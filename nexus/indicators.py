@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 
@@ -13,10 +14,14 @@ def add_indicators(df):
     close = pd.to_numeric(x["close"], errors="coerce")
     high = pd.to_numeric(x["high"], errors="coerce")
     low = pd.to_numeric(x["low"], errors="coerce")
-    if close.isna().any() or high.isna().any() or low.isna().any():
-        raise ValueError("OHLC data contains missing or non-numeric values")
-    if (close <= 0).any() or (high <= 0).any() or (low <= 0).any():
+    values = np.column_stack([high.to_numpy(dtype=float), low.to_numpy(dtype=float), close.to_numpy(dtype=float)])
+    if not np.isfinite(values).all():
+        raise ValueError("OHLC data contains missing, non-numeric, or non-finite values")
+    if (values <= 0).any():
         raise ValueError("OHLC prices must be positive")
+    if (high < low).any() or (high < close).any() or (low > close).any():
+        raise ValueError("OHLC data contains inconsistent high/low/close values")
+    x["close"], x["high"], x["low"] = close, high, low
 
     x["ema20"] = close.ewm(span=20, adjust=False).mean()
     x["ema50"] = close.ewm(span=50, adjust=False).mean()
