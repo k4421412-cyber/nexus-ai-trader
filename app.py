@@ -82,6 +82,12 @@ elif page == "آزمایشگاه استراتژی":
             pf = result["profit_factor"]
             m6.metric("Profit Factor", str(pf) if pf is not None else "—")
 
+            m7, m8, m9 = st.columns(3)
+            m7.metric("ارزش برآوردی پس از خروج", f"{result['estimated_liquidation_balance']:,.2f} USDT")
+            m8.metric("بازده پس از هزینه خروج", f"{result['estimated_liquidation_return_pct']:.2f}%")
+            expectancy = result["expectancy_per_closed_trade"]
+            m9.metric("امید ریاضی هر معامله", f"{expectancy:,.2f} USDT" if expectancy is not None else "—")
+
             st.markdown("#### نمودار ارزش سرمایه")
             equity = pd.DataFrame({
                 "شماره کندل": range(len(result["equity_curve"])),
@@ -92,7 +98,9 @@ elif page == "آزمایشگاه استراتژی":
             if result["open_position"]:
                 st.info(
                     f"در پایان بازه یک موقعیت باز وجود دارد؛ "
-                    f"تعداد واحد: {result['open_position_units']}"
+                    f"تعداد واحد: {result['open_position_units']} | "
+                    f"ارزش برآوردی پس از کارمزد و لغزش خروج: "
+                    f"{result['estimated_liquidation_balance']:,.2f} USDT"
                 )
             else:
                 st.caption("در پایان بازه موقعیت بازی وجود ندارد.")
@@ -107,7 +115,8 @@ elif page == "آزمایشگاه استراتژی":
                 st.info("در بازه انتخاب‌شده هیچ معامله‌ای بسته نشده است.")
 
             st.caption(
-                "هزینه کارمزد و لغزش قیمت در محاسبات لحاظ شده‌اند. "
+                "کارمزد و لغزش ورود و خروج معاملات بسته‌شده لحاظ شده‌اند؛ "
+                "برای موقعیت باز نیز ارزش برآوردی پس از هزینه خروج جداگانه محاسبه شده است. "
                 "این گزارش بک‌تست تاریخی است و سود آینده را تضمین نمی‌کند؛ "
                 "آزمون خارج از نمونه و walk-forward هنوز کامل نشده است."
             )
