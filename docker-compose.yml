@@ -1,0 +1,15 @@
+services:
+  nexus:
+    build: .
+    image: nexus-ai-trader:latest
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      NEXUS_LEDGER_KEY: ${NEXUS_LEDGER_KEY:?Set NEXUS_LEDGER_KEY in your untracked .env file}
+      NEXUS_LEDGER_PATH: /data/investment-ledger.enc
+    volumes:
+      - nexus_data:/data
+
+volumes:
+  nexus_data:
