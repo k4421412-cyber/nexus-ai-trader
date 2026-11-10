@@ -203,6 +203,7 @@ elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
                 manager_profit_share_bps=manager_share
             )
             st.success("تنظیمات استخر مجازی ثبت شد.")
+            pool = st.session_state.investment_pool
 
     st.markdown("#### افزودن سرمایه‌گذار مجازی")
     st.caption("هر فرد فقط یک بار و پیش از اولین معامله شبیه‌سازی‌شده به این استخر اضافه می‌شود.")
