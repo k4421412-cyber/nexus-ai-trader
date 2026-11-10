@@ -94,3 +94,22 @@ def test_ledger_is_sequential_and_summary_is_simulation_only():
 def test_invalid_manager_profit_share_is_rejected(bps):
     with pytest.raises(ValueError):
         SimulatedInvestmentPool(manager_profit_share_bps=bps)
+
+
+def test_pool_rejects_losses_beyond_remaining_virtual_capital_without_mutation():
+    pool = SimulatedInvestmentPool()
+    pool.add_investor("alice", "100")
+    before_ledger = list(pool.ledger)
+    with pytest.raises(ValueError, match="remaining virtual capital"):
+        pool.record_trade("-101", "0")
+    assert pool.investor_report("alice")["virtual_value"] == "100"
+    assert pool.ledger == before_ledger
+    assert pool.started is False
+
+
+def test_pool_rejects_fees_that_exceed_remaining_virtual_capital():
+    pool = SimulatedInvestmentPool()
+    pool.add_investor("alice", "100")
+    with pytest.raises(ValueError, match="remaining virtual capital"):
+        pool.record_trade("0", "101")
+    assert pool.investor_report("alice")["virtual_value"] == "100"
