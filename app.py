@@ -6,6 +6,7 @@ from nexus.strategies import ema_rsi_signals, backtest
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.knowledge import save_note, load_notes
+from nexus.social_investment import SimulatedInvestmentPool
 
 st.set_page_config(page_title="NEXUS AI TRADER", page_icon="📈", layout="wide")
 st.markdown("""
@@ -19,13 +20,15 @@ html, body, [class*="css"] {font-family: Vazirmatn, sans-serif;}
 st.title("🚀 NEXUS AI TRADER")
 st.caption("نسخه آزمایشی 0.2 | تحلیل بازار، آزمایش استراتژی و معاملات مجازی")
 pages = ["داشبورد", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
-         "شکار توکن‌های DEX", "مرکز یادگیری", "اتصالات", "تنظیمات و راهنما"]
+         "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.sidebar.radio("بخش‌ها", pages)
 
 if "wallet" not in st.session_state:
     st.session_state.wallet = PaperWallet()
 if "notes" not in st.session_state:
     st.session_state.notes = load_notes()
+if "investment_pool" not in st.session_state:
+    st.session_state.investment_pool = SimulatedInvestmentPool()
 
 if page == "داشبورد":
     st.subheader("داشبورد")
@@ -179,6 +182,93 @@ elif page == "مرکز یادگیری":
     for note in load_notes():
         with st.expander(note["title"]):
             st.write(note["body"])
+
+elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
+    st.subheader("سرمایه‌گذاری مشارکتی و تقسیم سود — محیط شبیه‌سازی")
+    st.warning(
+        "این بخش فقط با اعداد مجازی کار می‌کند؛ هیچ واریز، برداشت، اتصال کیف پول یا معامله واقعی انجام نمی‌شود. "
+        "زیان نیز مانند سود، متناسب با سهم سرمایه مجازی هر فرد تقسیم می‌شود."
+    )
+    pool = st.session_state.investment_pool
+
+    if not pool.investors and not pool.started:
+        manager_share = st.selectbox(
+            "سهم مدیر از سود جدیدِ تحقق‌یافته",
+            [0, 500, 1000, 1500, 2000],
+            format_func=lambda value: f"{value / 100:.1f}%",
+            key="pool_manager_share",
+        )
+        if st.button("ثبت تنظیم سهم مدیر"):
+            st.session_state.investment_pool = SimulatedInvestmentPool(
+                manager_profit_share_bps=manager_share
+            )
+            st.success("تنظیمات استخر مجازی ثبت شد.")
+
+    st.markdown("#### افزودن سرمایه‌گذار مجازی")
+    st.caption("هر فرد فقط یک بار و پیش از اولین معامله شبیه‌سازی‌شده به این استخر اضافه می‌شود.")
+    c1, c2 = st.columns(2)
+    investor_id = c1.text_input("شناسه دلخواه سرمایه‌گذار", key="pool_investor_id")
+    contribution = c2.number_input(
+        "مبلغ سرمایه مجازی (USDT)", min_value=0.01, value=100.0, step=10.0,
+        key="pool_contribution"
+    )
+    if st.button("افزودن سرمایه مجازی"):
+        try:
+            pool.add_investor(investor_id, contribution)
+            st.success("سرمایه مجازی با موفقیت ثبت شد.")
+        except (ValueError, KeyError) as e:
+            st.error(str(e))
+
+    st.markdown("#### ثبت نتیجه معامله فرضی")
+    st.caption("سود را مثبت و زیان را منفی وارد کنید؛ کارمزد معامله جداگانه از نتیجه کسر می‌شود.")
+    c3, c4 = st.columns(2)
+    realized_pnl = c3.number_input(
+        "سود/زیان تحقق‌یافته فرضی (USDT)", value=0.0, step=1.0,
+        key="pool_realized_pnl"
+    )
+    trading_fees = c4.number_input(
+        "هزینه و کارمزد فرضی (USDT)", min_value=0.0, value=0.0, step=0.1,
+        key="pool_trading_fees"
+    )
+    if st.button("ثبت نتیجه در دفترکل مجازی"):
+        try:
+            if realized_pnl == 0 and trading_fees == 0:
+                st.error("نتیجه یا هزینه معامله باید غیرصفر باشد.")
+            else:
+                pool.record_trade(realized_pnl, trading_fees)
+                st.success("نتیجه فرضی ثبت و بین سرمایه‌گذاران توزیع شد.")
+        except (ValueError, KeyError) as e:
+            st.error(str(e))
+
+    report = pool.summary()
+    st.markdown("#### خلاصه استخر")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("تعداد سرمایه‌گذاران", report["investor_count"])
+    m2.metric("کل سرمایه مجازی", f'{float(report["total_virtual_contributions"]):,.2f} USDT')
+    m3.metric("سود/زیان خالص استخر", f'{float(report["pool_cumulative_net_pnl"]):,.2f} USDT')
+
+    if report["investors"]:
+        st.markdown("#### گزارش سهم هر سرمایه‌گذار")
+        investor_rows = []
+        for investor in report["investors"]:
+            investor_rows.append({
+                "سرمایه‌گذار": investor["investor_id"],
+                "سهم از استخر (%)": float(investor["share_pct"]),
+                "سرمایه اولیه مجازی": float(investor["contributed"]),
+                "سود/زیان خالص": float(investor["net_pnl"]),
+                "ارزش مجازی فعلی": float(investor["virtual_value"]),
+            })
+        st.dataframe(pd.DataFrame(investor_rows), use_container_width=True)
+
+    st.markdown("#### دفترکل رویدادها")
+    if pool.ledger:
+        st.dataframe(pd.DataFrame(pool.ledger), use_container_width=True)
+    st.caption(
+        "محاسبات با Decimal انجام می‌شوند. سهم مدیر فقط از سود خالص جدید بالاتر از سقف قبلی "
+        "(High-Water Mark) محاسبه می‌شود؛ بازیابی زیان قبلی دوباره مشمول سهم مدیر نیست. "
+        "برای سادگی MVP، افزودن سرمایه جدید پس از اولین معامله و برداشت هنوز پشتیبانی نمی‌شود. "
+        "اطلاعات این محیط با پایان نشست ممکن است از بین برود و دفترکل فعلاً ذخیره‌سازی دائمی یا امضای رمزنگاری‌شده ندارد."
+    )
 
 elif page == "اتصالات":
     st.subheader("اتصالات")
