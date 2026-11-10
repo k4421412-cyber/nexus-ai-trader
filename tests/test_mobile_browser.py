@@ -63,8 +63,17 @@ def test_mobile_viewports_render_all_pages_without_horizontal_overflow(running_a
         page.goto(running_app, wait_until="domcontentloaded", timeout=30000)
         page.get_by_text("NEXUS AI TRADER").first.wait_for(timeout=20000)
 
+        # Streamlit collapses its sidebar on narrow viewports. Open it before
+        # interacting with navigation items so the test exercises real mobile UI.
+        sidebar_toggle = page.locator('[data-testid="stSidebarCollapsedControl"]')
+        if sidebar_toggle.count() and sidebar_toggle.first.is_visible():
+            sidebar_toggle.first.click(timeout=8000)
+            page.locator('[data-testid="stSidebar"]').wait_for(state="visible", timeout=8000)
+
         for page_name in PAGES:
-            page.get_by_text(page_name, exact=True).first.click(timeout=8000)
+            nav_item = page.get_by_text(page_name, exact=True).first
+            nav_item.scroll_into_view_if_needed(timeout=8000)
+            nav_item.click(timeout=8000)
             page.wait_for_timeout(250)
             dimensions = page.evaluate(
                 "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth})"
