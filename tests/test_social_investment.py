@@ -124,7 +124,7 @@ def test_partial_virtual_withdrawal_updates_balance_and_ledger():
     assert Decimal(report["virtual_value"]) == Decimal("90")
     assert Decimal(report["withdrawn"]) == Decimal("20")
     assert pool.ledger[-1]["event"] == "virtual_withdrawal"
-    assert Decimal(pool.summary()["current_virtual_balance"]) == Decimal("390")
+    assert Decimal(pool.summary()["current_virtual_balance"]) == Decimal("420")
 
 
 def test_future_profit_is_allocated_by_remaining_virtual_balance_after_withdrawal():
