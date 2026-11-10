@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import pandas as pd
 
 
@@ -47,8 +48,9 @@ def backtest(
     signal_values = pd.Series(signals).reset_index(drop=True).fillna(False).astype(bool)
     for column in ["open", "close", "ema20", "ema50"]:
         market[column] = pd.to_numeric(market[column], errors="coerce")
-    if market[["open", "close", "ema20", "ema50"]].isna().any().any():
-        raise ValueError("Backtest data contains missing or non-numeric prices/indicators")
+    numeric_values = market[["open", "close", "ema20", "ema50"]].to_numpy(dtype=float)
+    if not np.isfinite(numeric_values).all():
+        raise ValueError("Backtest data contains missing, non-numeric, or non-finite prices/indicators")
     if (market[["open", "close"]] <= 0).any().any():
         raise ValueError("Backtest prices must be positive")
 
