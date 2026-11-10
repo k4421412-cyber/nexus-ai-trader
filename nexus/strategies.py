@@ -3,9 +3,6 @@ import math
 import numpy as np
 import pandas as pd
 
-import numpy as np
-import pandas as pd
-
 
 def ema_rsi_signals(df):
     required = {"ema20", "ema50", "rsi"}
