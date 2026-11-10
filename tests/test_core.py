@@ -273,3 +273,33 @@ def test_ema_rsi_signals_reject_overbought_crossover():
 def test_ema_rsi_signals_require_indicator_columns():
     with pytest.raises(ValueError, match="Missing signal columns"):
         ema_rsi_signals(pd.DataFrame({"ema20": [1.0], "ema50": [0.5]}))
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+def test_indicators_reject_non_finite_ohlc(bad):
+    frame = pd.DataFrame({"high": [101, bad], "low": [99, 99], "close": [100, 100]})
+    with pytest.raises(ValueError, match="non-finite"):
+        add_indicators(frame)
+
+
+def test_indicators_reject_inconsistent_ohlc():
+    frame = pd.DataFrame({"high": [99], "low": [101], "close": [100]})
+    with pytest.raises(ValueError, match="inconsistent"):
+        add_indicators(frame)
+
+
+def test_paper_wallet_rejects_non_numeric_inputs():
+    with pytest.raises(ValueError, match="numeric"):
+        PaperWallet("not-cash")
+    wallet = PaperWallet(100)
+    with pytest.raises(ValueError, match="numeric"):
+        wallet.buy("BTC/USDT", "many", 10)
+
+
+def test_paper_wallet_rejects_cash_overflow_on_sale():
+    wallet = PaperWallet(1e308)
+    wallet.positions["BTC/USDT"] = 1e308
+    with pytest.raises(ValueError, match="Invalid order value"):
+        wallet.sell("BTC/USDT", 1e308, 2)
+    assert wallet.cash == 1e308
+    assert wallet.positions["BTC/USDT"] == 1e308
