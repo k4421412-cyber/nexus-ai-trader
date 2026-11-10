@@ -46,3 +46,17 @@ Streamlit AppTest checks page rendering in CI; physical-device and browser viewp
 The current engine is a simple long-only candle simulator. Before any live-trading discussion, add and validate: out-of-sample splits, walk-forward evaluation, parameter-sensitivity checks, realistic partial fills, spread/market impact, funding/borrow costs where relevant, exchange precision/minimum-notional rules, delisted assets and survivorship-bias controls, and independent reconciliation of trade ledgers. A high win rate alone is not an acceptance criterion; net expectancy, drawdown, tail loss and risk-adjusted return matter.
 
 No live orders, real deposits, withdrawals, private keys or seed phrases are supported by this release.
+
+
+## Additional release gates implemented in this pass
+
+- Cross-process file locking and reload-before-write prevent concurrent Streamlit sessions from silently overwriting one another's ledger updates on a single shared filesystem.
+- Ledger reload reconciles investor contributions, investor P/L, pool totals, finite balances and high-water mark before accepting the state.
+- Simulated partial withdrawals are recorded as ledger events, limited to each investor's available virtual balance, and subsequent simulated P/L is allocated using remaining virtual balances.
+- Walk-forward evaluation selects among supplied causal strategy signal streams using only each past training window, then evaluates the selected candidate on the next untouched test window. Each fold starts with a separate virtual balance; fold returns are not compounded.
+- Browser-level responsive checks run at 320, 375, 390 and 430 CSS pixels across the navigation pages. This is browser emulation, not a substitute for physical Android/iOS device acceptance.
+- A CI concurrency test creates multiple ledger clients and submits simultaneous virtual allocations to detect lost updates.
+
+### Persistent ledger operational setup
+
+The application code cannot install its own secret on an external hosting account. An authorized operator must configure `NEXUS_LEDGER_KEY` in the hosting provider's secret manager and set `NEXUS_LEDGER_PATH` to a persistent mounted volume. The volume must support atomic rename and file locking. Keep encrypted backups and the Fernet key separately, test restore procedures, restrict filesystem access, and monitor disk capacity. Do not use ephemeral container storage for a production ledger. The ledger remains simulation-only until separate legal, operational and security review.
