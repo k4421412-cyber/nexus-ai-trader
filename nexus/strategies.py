@@ -14,13 +14,18 @@ def ema_rsi_signals(df):
         raise ValueError(f"Missing signal columns: {', '.join(sorted(missing))}")
     market = df.copy()
     for column in required:
-        market[column] = pd.to_numeric(market[column], errors="coerce")
-    values = market[["ema20", "ema50", "rsi"]].to_numpy(dtype=float)
-    if not np.isfinite(values).all():
-        raise ValueError("Signal indicators must be numeric and finite")
+        converted = pd.to_numeric(market[column], errors="coerce")
+        if (market[column].notna() & converted.isna()).any():
+            raise ValueError("Signal indicators must be numeric")
+        market[column] = converted
+    ema_values = market[["ema20", "ema50"]].to_numpy(dtype=float)
+    rsi_values = market["rsi"].to_numpy(dtype=float)
+    if not np.isfinite(ema_values).all() or np.isinf(rsi_values).any():
+        raise ValueError("EMA values must be finite and RSI values must be finite or missing")
     if (market[["ema20", "ema50"]] <= 0).any().any():
         raise ValueError("EMA values must be positive")
-    if ((market["rsi"] < 0) | (market["rsi"] > 100)).any():
+    valid_rsi = market["rsi"].dropna()
+    if ((valid_rsi < 0) | (valid_rsi > 100)).any():
         raise ValueError("RSI values must be between 0 and 100")
     buy = (
         (market["ema20"] > market["ema50"])
