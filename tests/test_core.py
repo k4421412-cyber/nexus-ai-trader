@@ -199,3 +199,53 @@ def test_market_data_accepts_valid_ohlcv(monkeypatch):
     result = market_data.fetch_ohlcv()
     assert len(result) == 2
     assert result["timestamp"].is_monotonic_increasing
+
+
+@pytest.mark.parametrize("signals", [["False", True], [0, 1], [[True], [False]]])
+def test_backtest_rejects_non_boolean_or_multidimensional_signals(signals):
+    frame = pd.DataFrame({
+        "open": [100, 100], "close": [100, 100],
+        "ema20": [1, 1], "ema50": [2, 2],
+    })
+    with pytest.raises(ValueError, match="Signals"):
+        backtest(frame, signals)
+
+
+def test_backtest_treats_missing_boolean_signal_as_false():
+    frame = pd.DataFrame({
+        "open": [100, 100], "close": [100, 100],
+        "ema20": [1, 1], "ema50": [2, 2],
+    })
+    result = backtest(frame, [None, False])
+    assert result["open_position"] is False
+    assert result["final_balance"] == pytest.approx(1000)
+
+
+def test_backtest_reports_liquidation_value_after_exit_costs():
+    frame = pd.DataFrame({
+        "open": [100, 100],
+        "close": [100, 110],
+        "ema20": [1, 1],
+        "ema50": [2, 2],
+    })
+    result = backtest(frame, [True, False], fee=0.01, slippage=0.01)
+    assert result["open_position"] is True
+    assert result["estimated_liquidation_balance"] < result["marked_to_market_balance"]
+    assert result["estimated_liquidation_return_pct"] < result["net_return_pct"]
+
+
+def test_backtest_reports_trade_expectancy_and_market_exposure():
+    frame = pd.DataFrame({
+        "open": [100, 100, 110, 120],
+        "close": [100, 100, 110, 120],
+        "ema20": [1, 2, 1, 1],
+        "ema50": [2, 1, 2, 2],
+    })
+    result = backtest(frame, [True, False, False, False], fee=0, slippage=0)
+    assert result["closed_trade_count"] == 1
+    assert result["expectancy_per_closed_trade"] == pytest.approx(200)
+    assert result["average_win"] == pytest.approx(200)
+    assert result["average_loss"] is None
+    assert result["gross_profit"] == pytest.approx(200)
+    assert result["gross_loss"] == pytest.approx(0)
+    assert result["exposure_pct"] == pytest.approx(66.67, abs=0.01)
