@@ -153,3 +153,49 @@ def test_backtest_rejects_non_positive_initial_balance():
     })
     with pytest.raises(ValueError, match="Initial balance"):
         backtest(frame, pd.Series([False, False]), initial_balance=0)
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [[1000, 100, 105, 99, 102, 10], [2000, 102, float("inf"), 101, 104, 12]],
+        [[2000, 100, 105, 99, 102, 10], [1000, 102, 106, 101, 104, 12]],
+        [[1000, 100, 105, 99, 102, 10], [1000, 102, 106, 101, 104, 12]],
+        [[1000, 100, 99, 98, 102, 10], [2000, 102, 106, 101, 104, 12]],
+        [[1000, 100, 105, 103, 102, 10], [2000, 102, 106, 101, 104, 12]],
+    ],
+)
+def test_market_data_rejects_invalid_ohlcv(monkeypatch, rows):
+    from nexus import market_data
+
+    class FakeExchange:
+        def __init__(self, config):
+            self.config = config
+
+        def fetch_ohlcv(self, symbol, timeframe, limit):
+            return rows
+
+    monkeypatch.setattr(market_data.ccxt, "binance", FakeExchange)
+    with pytest.raises(RuntimeError):
+        market_data.fetch_ohlcv()
+
+
+def test_market_data_accepts_valid_ohlcv(monkeypatch):
+    from nexus import market_data
+
+    rows = [
+        [1000, 100, 105, 99, 102, 10],
+        [2000, 102, 106, 101, 104, 12],
+    ]
+
+    class FakeExchange:
+        def __init__(self, config):
+            self.config = config
+
+        def fetch_ohlcv(self, symbol, timeframe, limit):
+            return rows
+
+    monkeypatch.setattr(market_data.ccxt, "binance", FakeExchange)
+    result = market_data.fetch_ohlcv()
+    assert len(result) == 2
+    assert result["timestamp"].is_monotonic_increasing
