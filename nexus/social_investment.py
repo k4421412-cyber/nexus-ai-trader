@@ -1,6 +1,7 @@
 """Simulation-only investment accounting with optional encrypted persistence.
 
 Real-money custody, deposits, withdrawals and exchange orders are not supported.
+Only simulated virtual withdrawals are supported for testing.
 Set an explicit Fernet key and ledger path to enable durable encrypted storage.
 """
 import copy
