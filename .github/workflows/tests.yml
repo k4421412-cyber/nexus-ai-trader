@@ -20,6 +20,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest bandit pip-audit
+          python -m playwright install --with-deps chromium
       - name: Compile Python files
         run: python -m compileall -q app.py nexus
       - name: Static security scan
