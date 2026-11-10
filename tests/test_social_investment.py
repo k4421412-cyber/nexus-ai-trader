@@ -113,3 +113,56 @@ def test_pool_rejects_fees_that_exceed_remaining_virtual_capital():
     with pytest.raises(ValueError, match="remaining virtual capital"):
         pool.record_trade("0", "101")
     assert pool.investor_report("alice")["virtual_value"] == "100"
+
+
+def test_partial_virtual_withdrawal_updates_balance_and_ledger():
+    pool = SimulatedInvestmentPool()
+    pool.add_investor("alice", "100")
+    pool.add_investor("bob", "300")
+    pool.record_trade("40")
+    report = pool.withdraw_virtual("alice", "20")
+    assert Decimal(report["virtual_value"]) == Decimal("90")
+    assert Decimal(report["withdrawn"]) == Decimal("20")
+    assert pool.ledger[-1]["event"] == "virtual_withdrawal"
+    assert Decimal(pool.summary()["current_virtual_balance"]) == Decimal("390")
+
+
+def test_future_profit_is_allocated_by_remaining_virtual_balance_after_withdrawal():
+    pool = SimulatedInvestmentPool()
+    pool.add_investor("alice", "100")
+    pool.add_investor("bob", "100")
+    pool.withdraw_virtual("alice", "50")
+    pool.record_trade("15")
+    assert Decimal(pool.investor_report("alice")["net_pnl"]) == Decimal("5")
+    assert Decimal(pool.investor_report("bob")["net_pnl"]) == Decimal("10")
+
+
+@pytest.mark.parametrize("amount", ["0", "-1", "NaN", "Infinity", "101"])
+def test_invalid_or_excess_virtual_withdrawals_are_rejected_without_mutation(amount):
+    pool = SimulatedInvestmentPool()
+    pool.add_investor("alice", "100")
+    before = pool.summary()
+    before_ledger = list(pool.ledger)
+    with pytest.raises(ValueError):
+        pool.withdraw_virtual("alice", amount)
+    assert pool.summary() == before
+    assert pool.ledger == before_ledger
+
+
+def test_virtual_withdrawal_cannot_make_balance_negative():
+    pool = SimulatedInvestmentPool()
+    pool.add_investor("alice", "100")
+    pool.record_trade("-25")
+    with pytest.raises(ValueError, match="available virtual balance"):
+        pool.withdraw_virtual("alice", "76")
+    assert pool.investor_report("alice")["virtual_value"] == "75"
+
+
+def test_virtual_withdrawal_write_failure_rolls_back_account():
+    pool = SimulatedInvestmentPool()
+    pool.add_investor("alice", "100")
+    before = pool.investor_report("alice")
+    pool._persist = lambda: (_ for _ in ()).throw(OSError("disk full"))
+    with pytest.raises(OSError):
+        pool.withdraw_virtual("alice", "25")
+    assert pool.investor_report("alice") == before
