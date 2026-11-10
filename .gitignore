@@ -1,0 +1,19 @@
+# Local secrets and encrypted ledger data
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+/data/
+*.enc
+*.lock
+
+# Python and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local environments
+.venv/
+venv/
