@@ -68,7 +68,7 @@ elif page == "تحلیل بازار":
     if st.button("دریافت و تحلیل", type="primary"):
         try:
             df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, limit))
-            st.dataframe(df.tail(30), use_container_width=True)
+            st.dataframe(df.tail(30), width="stretch")
             last = df.iloc[-1]
             st.metric("آخرین قیمت بسته‌شدن", f"{last['close']:.6g}")
             st.metric("RSI", f"{last['rsi']:.2f}")
@@ -293,9 +293,9 @@ elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
         "محاسبات با Decimal انجام می‌شوند. سهم مدیر فقط از سود خالص جدید بالاتر از سقف قبلی "
         "(High-Water Mark) محاسبه می‌شود؛ بازیابی زیان قبلی دوباره مشمول سهم مدیر نیست. "
         "برای سادگی MVP، افزودن سرمایه جدید پس از اولین معامله و برداشت هنوز پشتیبانی نمی‌شود. "
-        ("دفترکل با رمزنگاری احرازاصالت‌شده Fernet ذخیره شده و زنجیره هش رویدادها نیز بررسی می‌شود."
-         if pool.persistent else
-         "ذخیره دائمی فعال نیست؛ با پایان نشست ممکن است اطلاعات از بین برود.")
+        + ("دفترکل با رمزنگاری احرازاصالت‌شده Fernet ذخیره شده و زنجیره هش رویدادها نیز بررسی می‌شود."
+           if pool.persistent else
+           "ذخیره دائمی فعال نیست؛ با پایان نشست ممکن است اطلاعات از بین برود.")
     )
 
 elif page == "اتصالات":
