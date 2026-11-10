@@ -60,3 +60,14 @@ No live orders, real deposits, withdrawals, private keys or seed phrases are sup
 ### Persistent ledger operational setup
 
 The application code cannot install its own secret on an external hosting account. An authorized operator must configure `NEXUS_LEDGER_KEY` in the hosting provider's secret manager and set `NEXUS_LEDGER_PATH` to a persistent mounted volume. The volume must support atomic rename and file locking. Keep encrypted backups and the Fernet key separately, test restore procedures, restrict filesystem access, and monitor disk capacity. Do not use ephemeral container storage for a production ledger. The ledger remains simulation-only until separate legal, operational and security review.
+
+
+### Backup and recovery procedure
+
+Use the verified ciphertext-only helpers in `nexus.ledger_backup`:
+- `backup_encrypted_ledger(source, destination, encryption_key)` verifies that the source decrypts before copying the encrypted bytes atomically.
+- `restore_encrypted_ledger(backup_path, destination, encryption_key)` verifies the backup and refuses to overwrite an existing destination unless `overwrite=True` is explicitly supplied.
+- Store backups on a separate persistent volume or backup provider. Keep the Fernet key in a separate secret manager, never alongside the backup.
+- Perform scheduled restore drills in an isolated directory and reconcile investor balances, event count and event hashes before considering recovery successful.
+
+The CI suite verifies backup/restore and wrong-key handling. It does not provision a server, create provider secrets, or perform an off-site backup automatically.
