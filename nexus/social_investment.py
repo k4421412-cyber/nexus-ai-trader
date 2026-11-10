@@ -20,7 +20,7 @@ from filelock import FileLock
 _ZERO_HASH = "0" * 64
 
 
-def _serialize_mutation(method):
+def _serialize_access(method):
     @wraps(method)
     def wrapped(self, *args, **kwargs):
         if not self.persistent:
@@ -335,6 +335,7 @@ class SimulatedInvestmentPool:
     def current_virtual_balance(self):
         return sum((a["contributed"] + a["net_pnl"] - a.get("withdrawn", Decimal("0")) for a in self.investors.values()), Decimal("0"))
 
+    @_serialize_access
     def summary(self):
         return {
             "investor_count": len(self.investors),
