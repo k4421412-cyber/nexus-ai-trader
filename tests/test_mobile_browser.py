@@ -70,9 +70,13 @@ def test_mobile_viewports_render_all_pages_without_horizontal_overflow(running_a
             sidebar_toggle.first.click(timeout=8000)
             page.locator('[data-testid="stSidebar"]').wait_for(state="visible", timeout=8000)
 
+        sidebar = page.locator('[data-testid="stSidebar"]')
         for page_name in PAGES:
-            nav_item = page.get_by_text(page_name, exact=True).first
-            nav_item.scroll_into_view_if_needed(timeout=8000)
+            # Target the actual accessible radio control, not its inner <p>
+            # text node (which can be outside the viewport in Streamlit's
+            # narrow-screen sidebar drawer).
+            nav_item = sidebar.get_by_role("radio", name=page_name)
+            nav_item.wait_for(state="visible", timeout=8000)
             nav_item.click(timeout=8000)
             page.wait_for_timeout(250)
             dimensions = page.evaluate(
