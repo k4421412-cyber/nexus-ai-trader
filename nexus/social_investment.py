@@ -71,7 +71,11 @@ class SimulatedInvestmentPool:
         self.high_water_mark = Decimal("0")
         self.started = False
         self.ledger_path = Path(ledger_path).expanduser() if ledger_path is not None else None
-        self._lock = FileLock(str(self.ledger_path) + ".lock") if self.ledger_path is not None else None
+        if self.ledger_path is not None:
+            self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+            self._lock = FileLock(str(self.ledger_path) + ".lock")
+        else:
+            self._lock = None
         try:
             self._cipher = Fernet(
                 encryption_key.encode("ascii") if isinstance(encryption_key, str) else encryption_key
