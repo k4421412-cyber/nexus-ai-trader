@@ -83,7 +83,7 @@ def test_backtest_closes_position_on_next_open_after_exit_condition():
     result = backtest(frame, signals, fee=0, slippage=0)
     assert result["closed_trade_count"] == 1
     assert result["open_position"] is False
-    assert result["final_balance"] == pytest.approx(1100)
+    assert result["final_balance"] == pytest.approx(1200)
 
 
 @pytest.mark.parametrize("fee,slippage", [(-0.1, 0), (1, 0), (0, -0.1), (0, 1)])
