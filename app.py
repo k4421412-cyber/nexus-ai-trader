@@ -245,6 +245,24 @@ elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
         except (ValueError, KeyError) as e:
             st.error(str(e))
 
+    if pool.investors:
+        st.markdown("#### برداشت مجازی سرمایه‌گذار")
+        withdrawal_investor = st.selectbox(
+            "انتخاب سرمایه‌گذار برای برداشت مجازی",
+            list(pool.investors.keys()),
+            key="pool_withdrawal_investor",
+        )
+        withdrawal_amount = st.number_input(
+            "مبلغ برداشت مجازی (USDT)", min_value=0.01, value=10.0, step=1.0,
+            key="pool_withdrawal_amount",
+        )
+        if st.button("ثبت برداشت مجازی"):
+            try:
+                pool.withdraw_virtual(withdrawal_investor, withdrawal_amount)
+                st.success("برداشت مجازی در دفترکل ثبت شد؛ هیچ پول واقعی جابه‌جا نشد.")
+            except (ValueError, KeyError) as e:
+                st.error(str(e))
+
     st.markdown("#### ثبت نتیجه معامله فرضی")
     st.caption("سود را مثبت و زیان را منفی وارد کنید؛ کارمزد معامله جداگانه از نتیجه کسر می‌شود.")
     c3, c4 = st.columns(2)
@@ -272,6 +290,7 @@ elif page == "سرمایه‌گذاری مشارکتی (آزمایشی)":
     m1.metric("تعداد سرمایه‌گذاران", report["investor_count"])
     m2.metric("کل سرمایه مجازی", f'{float(report["total_virtual_contributions"]):,.2f} USDT')
     m3.metric("سود/زیان خالص استخر", f'{float(report["pool_cumulative_net_pnl"]):,.2f} USDT')
+    st.metric("موجودی مجازی فعلی پس از برداشت‌ها", f'{float(report["current_virtual_balance"]):,.2f} USDT')
 
     if report["investors"]:
         st.markdown("#### گزارش سهم هر سرمایه‌گذار")
