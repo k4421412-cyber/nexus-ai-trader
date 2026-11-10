@@ -1,4 +1,5 @@
 import ccxt
+import numpy as np
 import pandas as pd
 
 
@@ -17,11 +18,20 @@ def fetch_ohlcv(exchange_id="binance", symbol="BTC/USDT", timeframe="1h", limit=
     rows = exchange.fetch_ohlcv(symbol.strip(), timeframe=timeframe, limit=limit)
     if not rows:
         raise RuntimeError("No market data returned")
+
     df = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
-    for column in ["open", "high", "low", "close", "volume"]:
+    columns = ["timestamp", "open", "high", "low", "close", "volume"]
+    for column in columns:
         df[column] = pd.to_numeric(df[column], errors="coerce")
-    if df[["open", "high", "low", "close", "volume"]].isna().any().any():
-        raise RuntimeError("Exchange returned incomplete or non-numeric OHLCV data")
+    values = df[columns].to_numpy(dtype=float)
+    if not np.isfinite(values).all():
+        raise RuntimeError("Exchange returned missing, non-numeric, or non-finite OHLCV data")
     if (df[["open", "high", "low", "close"]] <= 0).any().any() or (df["volume"] < 0).any():
         raise RuntimeError("Exchange returned invalid OHLCV values")
+    if not df["timestamp"].is_monotonic_increasing or df["timestamp"].duplicated().any():
+        raise RuntimeError("Exchange returned unordered or duplicate candle timestamps")
+    if (df["high"] < df[["open", "close", "low"]].max(axis=1)).any():
+        raise RuntimeError("Exchange returned inconsistent candle highs")
+    if (df["low"] > df[["open", "close", "high"]].min(axis=1)).any():
+        raise RuntimeError("Exchange returned inconsistent candle lows")
     return df
