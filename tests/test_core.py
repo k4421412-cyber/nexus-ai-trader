@@ -305,7 +305,7 @@ def test_paper_wallet_rejects_cash_overflow_on_sale():
     assert wallet.positions["BTC/USDT"] == 1e308
 
 
-@pytest.mark.parametrize("bad_rsi", [float("nan"), float("inf"), -1, 101, "bad"])
+@pytest.mark.parametrize("bad_rsi", [float("inf"), -1, 101, "bad"])
 def test_ema_rsi_signals_reject_invalid_indicator_values(bad_rsi):
     frame = pd.DataFrame({
         "ema20": [9.0, 11.0],
@@ -323,3 +323,12 @@ def test_ema_rsi_signals_accept_numeric_string_indicators():
         "rsi": ["50", "60"],
     })
     assert ema_rsi_signals(frame).tolist() == [False, True]
+
+
+def test_ema_rsi_signals_treats_warmup_rsi_as_no_signal():
+    frame = pd.DataFrame({
+        "ema20": [9.0, 11.0, 12.0],
+        "ema50": [10.0, 10.0, 10.5],
+        "rsi": [float("nan"), 60.0, 65.0],
+    })
+    assert ema_rsi_signals(frame).tolist() == [False, True, False]
