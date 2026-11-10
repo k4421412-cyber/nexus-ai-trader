@@ -133,3 +133,48 @@ def test_backtest_large_dataset_finishes_within_performance_budget():
     elapsed = time.perf_counter() - started
     assert result["equity_curve"]
     assert elapsed < 8.0
+
+from concurrent.futures import ThreadPoolExecutor
+
+
+def test_multiple_persistent_pool_instances_do_not_lose_updates(tmp_path):
+    key = Fernet.generate_key()
+    path = tmp_path / "shared-ledger.enc"
+    first = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+    second = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+    first.add_investor("alice", "100")
+    second.add_investor("bob", "200")
+    refreshed = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+    assert set(refreshed.investors) == {"alice", "bob"}
+    assert refreshed.summary()["investor_count"] == 2
+
+
+def test_concurrent_persistent_allocations_are_serialized(tmp_path):
+    key = Fernet.generate_key()
+    path = tmp_path / "concurrent-ledger.enc"
+    SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+
+    def add_one(index):
+        pool = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+        pool.add_investor(f"investor-{index}", "10")
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(add_one, range(16)))
+
+    final = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+    assert final.summary()["investor_count"] == 16
+    assert final.summary()["total_virtual_contributions"] == "160"
+
+
+def test_persistent_ledger_reconciles_withdrawals_after_restart(tmp_path):
+    key = Fernet.generate_key()
+    path = tmp_path / "withdrawals.enc"
+    pool = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+    pool.add_investor("alice", "100")
+    pool.record_trade("25")
+    pool.withdraw_virtual("alice", "40")
+    restored = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+    report = restored.investor_report("alice")
+    assert report["virtual_value"] == "85"
+    assert report["withdrawn"] == "40"
+    assert restored.summary()["current_virtual_balance"] == "85"
