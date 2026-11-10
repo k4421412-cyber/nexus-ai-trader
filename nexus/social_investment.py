@@ -69,9 +69,13 @@ class SimulatedInvestmentPool:
         net = raw_pnl - fee
         previous_profit = self.cumulative_net_pnl
         next_profit = previous_profit + net
+        if next_profit < -self.total_contributed:
+            raise ValueError("Trade loss and fees cannot exceed the pool's remaining virtual capital")
         fee_base = max(Decimal("0"), next_profit - max(self.high_water_mark, previous_profit))
         manager_fee = fee_base * Decimal(self.manager_profit_share_bps) / Decimal(10000)
         investor_net = net - manager_fee
+        if self.total_contributed + previous_profit + investor_net < 0:
+            raise ValueError("Settlement would make investor virtual balances negative")
         self.started = True
         self.cumulative_net_pnl = next_profit - manager_fee
         self.high_water_mark = max(self.high_water_mark, self.cumulative_net_pnl)
