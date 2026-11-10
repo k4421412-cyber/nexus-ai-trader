@@ -59,7 +59,6 @@ class SimulatedInvestmentPool:
     def record_trade(self, realized_pnl, fees=0):
         if not self.investors:
             raise ValueError("Add at least one virtual investor before recording trades")
-        pnl = _amount(abs(Decimal(str(realized_pnl))), "realized_pnl") 
         try:
             raw_pnl = Decimal(str(realized_pnl))
         except (InvalidOperation, TypeError, ValueError):
