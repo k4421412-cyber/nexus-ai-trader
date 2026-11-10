@@ -125,6 +125,10 @@ elif page == "آزمایشگاه استراتژی":
 
 elif page == "مرکز سیگنال‌ها":
     st.subheader("مرکز سیگنال‌ها")
+    st.info(
+        "این بخش برای بررسی و ارزیابی دقت سیگنال‌های ربات NEXUS AI TRADER طراحی شده است. "
+        "همچنین برای افرادی که از پلتفرم‌های مختلف بونوس دریافت کرده‌اند، کاربرد دارد."
+    )
     st.warning("سیگنال‌های این نسخه آموزشی‌اند و توصیه مالی نیستند.")
     exchange = st.selectbox("صرافی", ["binance", "okx", "bybit"], key="sig_ex")
     symbol = st.text_input("نماد", "BTC/USDT", key="sig_symbol")
