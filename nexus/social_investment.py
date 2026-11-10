@@ -4,6 +4,7 @@ Real-money custody, deposits, withdrawals and exchange orders are not supported.
 Set an explicit Fernet key and ledger path to enable durable encrypted storage.
 """
 import copy
+from functools import wraps
 import hashlib
 import json
 import os
@@ -13,9 +14,22 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
+from filelock import FileLock
 
 
 _ZERO_HASH = "0" * 64
+
+
+def _serialize_mutation(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        if not self.persistent:
+            return method(self, *args, **kwargs)
+        with self._lock:
+            if self.ledger_path.exists():
+                self._load()
+            return method(self, *args, **kwargs)
+    return wrapped
 
 
 def _amount(value, field, *, allow_zero=True):
@@ -56,6 +70,7 @@ class SimulatedInvestmentPool:
         self.high_water_mark = Decimal("0")
         self.started = False
         self.ledger_path = Path(ledger_path).expanduser() if ledger_path is not None else None
+        self._lock = FileLock(str(self.ledger_path) + ".lock") if self.ledger_path is not None else None
         try:
             self._cipher = Fernet(
                 encryption_key.encode("ascii") if isinstance(encryption_key, str) else encryption_key
@@ -63,8 +78,12 @@ class SimulatedInvestmentPool:
         except (TypeError, ValueError) as exc:
             raise ValueError("encryption_key must be a valid Fernet key") from exc
 
-        if self.ledger_path is not None and self.ledger_path.exists():
-            self._load()
+        if self.ledger_path is not None:
+            with self._lock:
+                if self.ledger_path.exists():
+                    self._load()
+                else:
+                    self._append("pool_created", manager_profit_share_bps=self.manager_profit_share_bps)
         else:
             self._append("pool_created", manager_profit_share_bps=self.manager_profit_share_bps)
 
@@ -145,14 +164,35 @@ class SimulatedInvestmentPool:
             raw_investors = payload.get("investors")
             if not isinstance(raw_investors, dict):
                 raise ValueError("Invalid investor state in encrypted ledger")
-            self.investors = {
-                key: {name: Decimal(value) for name, value in account.items()}
-                for key, account in raw_investors.items()
-            }
+            if not all(isinstance(key, str) and isinstance(account, dict) for key, account in raw_investors.items()):
+                raise ValueError("Invalid investor records in encrypted ledger")
+            restored = {}
+            for key, account in raw_investors.items():
+                if set(account) - {"contributed", "net_pnl", "withdrawn"} or not {"contributed", "net_pnl"}.issubset(account):
+                    raise ValueError("Invalid investor account fields in encrypted ledger")
+                values = {
+                    "contributed": Decimal(account["contributed"]),
+                    "net_pnl": Decimal(account["net_pnl"]),
+                    "withdrawn": Decimal(account.get("withdrawn", "0")),
+                }
+                if not all(value.is_finite() for value in values.values()) or values["contributed"] <= 0 or values["withdrawn"] < 0:
+                    raise ValueError("Invalid investor balances in encrypted ledger")
+                if values["contributed"] + values["net_pnl"] - values["withdrawn"] < 0:
+                    raise ValueError("Negative investor balance in encrypted ledger")
+                restored[key] = values
+            self.investors = restored
             self.total_contributed = Decimal(payload["total_contributed"])
             self.cumulative_net_pnl = Decimal(payload["cumulative_net_pnl"])
             self.high_water_mark = Decimal(payload["high_water_mark"])
             self.started = bool(payload["started"])
+            if not all(value.is_finite() for value in (self.total_contributed, self.cumulative_net_pnl, self.high_water_mark)):
+                raise ValueError("Non-finite pool totals in encrypted ledger")
+            if self.total_contributed != sum((a["contributed"] for a in restored.values()), Decimal("0")):
+                raise ValueError("Investor contributions do not reconcile with pool total")
+            if self.cumulative_net_pnl != sum((a["net_pnl"] for a in restored.values()), Decimal("0")):
+                raise ValueError("Investor P/L does not reconcile with pool total")
+            if self.high_water_mark < self.cumulative_net_pnl:
+                raise ValueError("Invalid high-water mark in encrypted ledger")
             self.ledger = events
         except (InvalidToken, OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError,
                 TypeError, InvalidOperation) as exc:
@@ -175,6 +215,7 @@ class SimulatedInvestmentPool:
             self.ledger.pop()
             raise
 
+    @_serialize_mutation
     def set_manager_profit_share(self, basis_points):
         if isinstance(basis_points, bool) or not isinstance(basis_points, int) or not 0 <= basis_points <= 10000:
             raise ValueError("manager profit share must be an integer between 0 and 10000")
@@ -188,6 +229,7 @@ class SimulatedInvestmentPool:
             self.manager_profit_share_bps = previous
             raise
 
+    @_serialize_mutation
     def add_investor(self, investor_id, contribution):
         if self.started:
             raise ValueError("New allocations are disabled after the first simulated trade")
@@ -197,7 +239,7 @@ class SimulatedInvestmentPool:
         if investor_id in self.investors:
             raise ValueError("Investor already exists in this pool")
         amount = _amount(contribution, "contribution", allow_zero=False)
-        self.investors[investor_id] = {"contributed": amount, "net_pnl": Decimal("0")}
+        self.investors[investor_id] = {"contributed": amount, "net_pnl": Decimal("0"), "withdrawn": Decimal("0")}
         self.total_contributed += amount
         try:
             self._append("virtual_allocation", investor_id=investor_id, amount=amount)
@@ -207,6 +249,7 @@ class SimulatedInvestmentPool:
             raise
         return self.investor_report(investor_id)
 
+    @_serialize_mutation
     def record_trade(self, realized_pnl, fees=0):
         if not self.investors:
             raise ValueError("Add at least one virtual investor before recording trades")
@@ -220,12 +263,15 @@ class SimulatedInvestmentPool:
         net = raw_pnl - fee
         previous_profit = self.cumulative_net_pnl
         next_profit = previous_profit + net
-        if next_profit < -self.total_contributed:
+        active_capital = sum((a["contributed"] + a["net_pnl"] - a.get("withdrawn", Decimal("0")) for a in self.investors.values()), Decimal("0"))
+        if active_capital <= 0:
+            raise ValueError("No active virtual capital remains in the pool")
+        if active_capital + net < 0:
             raise ValueError("Trade loss and fees cannot exceed the pool's remaining virtual capital")
         fee_base = max(Decimal("0"), next_profit - max(self.high_water_mark, previous_profit))
         manager_fee = fee_base * Decimal(self.manager_profit_share_bps) / Decimal(10000)
         investor_net = net - manager_fee
-        if self.total_contributed + previous_profit + investor_net < 0:
+        if active_capital + investor_net < 0:
             raise ValueError("Settlement would make investor virtual balances negative")
 
         old_investors = copy.deepcopy(self.investors)
@@ -234,7 +280,8 @@ class SimulatedInvestmentPool:
         self.cumulative_net_pnl = next_profit - manager_fee
         self.high_water_mark = max(self.high_water_mark, self.cumulative_net_pnl)
         for investor_id, account in self.investors.items():
-            share = account["contributed"] / self.total_contributed
+            active_value = account["contributed"] + account["net_pnl"] - account.get("withdrawn", Decimal("0"))
+            share = active_value / active_capital
             account["net_pnl"] += investor_net * share
         try:
             self._append(
@@ -253,6 +300,24 @@ class SimulatedInvestmentPool:
             raise
         return self.summary()
 
+    @_serialize_mutation
+    def withdraw_virtual(self, investor_id, amount):
+        if investor_id not in self.investors:
+            raise KeyError("Unknown investor")
+        value = _amount(amount, "withdrawal", allow_zero=False)
+        account = self.investors[investor_id]
+        balance = account["contributed"] + account["net_pnl"] - account.get("withdrawn", Decimal("0"))
+        if value > balance:
+            raise ValueError("Withdrawal exceeds the investor's available virtual balance")
+        previous = account.get("withdrawn", Decimal("0"))
+        account["withdrawn"] = previous + value
+        try:
+            self._append("virtual_withdrawal", investor_id=investor_id, amount=value)
+        except Exception:
+            account["withdrawn"] = previous
+            raise
+        return self.investor_report(investor_id)
+
     def investor_report(self, investor_id):
         if investor_id not in self.investors:
             raise KeyError("Unknown investor")
@@ -261,15 +326,21 @@ class SimulatedInvestmentPool:
             "investor_id": investor_id,
             "contributed": str(account["contributed"]),
             "net_pnl": str(account["net_pnl"]),
-            "virtual_value": str(account["contributed"] + account["net_pnl"]),
-            "share_pct": str(account["contributed"] / self.total_contributed * 100),
+            "withdrawn": str(account.get("withdrawn", Decimal("0"))),
+            "virtual_value": str(account["contributed"] + account["net_pnl"] - account.get("withdrawn", Decimal("0"))),
+            "share_pct": str((account["contributed"] + account["net_pnl"] - account.get("withdrawn", Decimal("0"))) / self.current_virtual_balance * 100) if self.current_virtual_balance > 0 else "0",
         }
+
+    @property
+    def current_virtual_balance(self):
+        return sum((a["contributed"] + a["net_pnl"] - a.get("withdrawn", Decimal("0")) for a in self.investors.values()), Decimal("0"))
 
     def summary(self):
         return {
             "investor_count": len(self.investors),
             "total_virtual_contributions": str(self.total_contributed),
             "pool_cumulative_net_pnl": str(self.cumulative_net_pnl),
+            "current_virtual_balance": str(self.current_virtual_balance),
             "high_water_mark": str(self.high_water_mark),
             "manager_profit_share_bps": self.manager_profit_share_bps,
             "investors": [self.investor_report(key) for key in self.investors],
