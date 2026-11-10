@@ -2,3 +2,4 @@ streamlit>=1.36
 pandas>=2.0
 ccxt>=4.3
 requests>=2.31
+cryptography>=42.0
