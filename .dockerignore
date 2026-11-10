@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+.venv
+venv
+__pycache__
+.pytest_cache
+*.enc
+*.lock
