@@ -94,3 +94,61 @@ def test_backtest_rejects_invalid_costs(fee, slippage):
     })
     with pytest.raises(ValueError):
         backtest(frame, pd.Series([False, False]), fee=fee, slippage=slippage)
+
+
+@pytest.mark.parametrize(
+    "column,value",
+    [
+        ("open", float("inf")),
+        ("close", float("-inf")),
+        ("ema20", float("nan")),
+        ("ema50", "not-a-number"),
+    ],
+)
+def test_backtest_rejects_non_finite_or_non_numeric_market_data(column, value):
+    frame = pd.DataFrame({
+        "open": [100, 100],
+        "close": [100, 100],
+        "ema20": [1, 1],
+        "ema50": [2, 2],
+    })
+    frame.loc[1, column] = value
+    with pytest.raises(ValueError, match="non-finite"):
+        backtest(frame, pd.Series([False, False]))
+
+
+def test_backtest_without_signals_preserves_initial_balance():
+    frame = pd.DataFrame({
+        "open": [100, 105],
+        "close": [102, 106],
+        "ema20": [1, 1],
+        "ema50": [2, 2],
+    })
+    result = backtest(frame, pd.Series([False, False]))
+    assert result["final_balance"] == pytest.approx(1000)
+    assert result["net_return_pct"] == pytest.approx(0)
+    assert result["closed_trade_count"] == 0
+    assert result["max_drawdown_pct"] == pytest.approx(0)
+    assert result["profit_factor"] is None
+
+
+def test_backtest_rejects_mismatched_signal_length():
+    frame = pd.DataFrame({
+        "open": [100, 100],
+        "close": [100, 100],
+        "ema20": [1, 1],
+        "ema50": [2, 2],
+    })
+    with pytest.raises(ValueError, match="Signals length"):
+        backtest(frame, pd.Series([True]))
+
+
+def test_backtest_rejects_non_positive_initial_balance():
+    frame = pd.DataFrame({
+        "open": [100, 100],
+        "close": [100, 100],
+        "ema20": [1, 1],
+        "ema50": [2, 2],
+    })
+    with pytest.raises(ValueError, match="Initial balance"):
+        backtest(frame, pd.Series([False, False]), initial_balance=0)
