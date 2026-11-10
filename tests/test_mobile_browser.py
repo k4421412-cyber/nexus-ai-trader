@@ -1,0 +1,78 @@
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+import pytest
+from playwright.sync_api import sync_playwright
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PAGES = [
+    "داشبورد",
+    "تحلیل بازار",
+    "آزمایشگاه استراتژی",
+    "مرکز سیگنال‌ها",
+    "شکار توکن‌های DEX",
+    "مرکز یادگیری",
+    "سرمایه‌گذاری مشارکتی (آزمایشی)",
+    "اتصالات",
+    "تنظیمات و راهنما",
+]
+
+
+@pytest.fixture(scope="module")
+def running_app():
+    process = subprocess.Popen(
+        [
+            sys.executable, "-m", "streamlit", "run", str(ROOT / "app.py"),
+            "--server.headless", "true", "--server.address", "127.0.0.1",
+            "--server.port", "8765", "--browser.gatherUsageStats", "false",
+        ],
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+    )
+    base_url = "http://127.0.0.1:8765"
+    deadline = time.time() + 45
+    while time.time() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError("Streamlit exited before becoming ready")
+        try:
+            with urllib.request.urlopen(base_url, timeout=2):
+                break
+        except Exception:
+            time.sleep(0.5)
+    else:
+        process.terminate()
+        raise RuntimeError("Streamlit did not become ready within 45 seconds")
+    yield base_url
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+
+@pytest.mark.parametrize("width", [320, 375, 390, 430])
+def test_mobile_viewports_render_all_pages_without_horizontal_overflow(running_app, width):
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": width, "height": 844}, device_scale_factor=1)
+        page.goto(running_app, wait_until="domcontentloaded", timeout=30000)
+        page.get_by_text("NEXUS AI TRADER").first.wait_for(timeout=20000)
+
+        for page_name in PAGES:
+            page.get_by_text(page_name, exact=True).first.click(timeout=8000)
+            page.wait_for_timeout(250)
+            dimensions = page.evaluate(
+                "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth})"
+            )
+            assert dimensions["document"] <= dimensions["viewport"] + 2, (
+                f"Horizontal overflow at {width}px on {page_name}: {dimensions}"
+            )
+            assert dimensions["body"] <= dimensions["viewport"] + 2, (
+                f"Body overflow at {width}px on {page_name}: {dimensions}"
+            )
+        browser.close()
