@@ -112,6 +112,7 @@ def test_backtest_rejects_non_finite_or_non_numeric_market_data(column, value):
         "ema20": [1, 1],
         "ema50": [2, 2],
     })
+    frame[column] = frame[column].astype(object)
     frame.loc[1, column] = value
     with pytest.raises(ValueError, match="non-finite"):
         backtest(frame, pd.Series([False, False]))
