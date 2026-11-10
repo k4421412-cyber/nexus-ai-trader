@@ -3,6 +3,7 @@ import pytest
 
 from nexus.indicators import add_indicators
 from nexus.paper import PaperWallet
+from nexus.strategies import backtest
 
 
 def test_rsi_is_100_in_persistent_uptrend():
@@ -44,3 +45,52 @@ def test_paper_wallet_rejects_overselling():
     wallet.buy("BTC/USDT", 0.01, 10000)
     with pytest.raises(ValueError):
         wallet.sell("BTC/USDT", 0.02, 10000)
+
+
+def test_backtest_fills_on_next_open_not_signal_candle_close():
+    frame = pd.DataFrame({
+        "open": [100, 120, 130],
+        "close": [110, 125, 140],
+        "ema20": [1, 2, 3],
+        "ema50": [2, 1, 1],
+    })
+    signals = pd.Series([True, False, False])
+    result = backtest(frame, signals, fee=0, slippage=0)
+    assert result["open_position"] is True
+    assert result["final_balance"] == pytest.approx(1000 * 140 / 120, abs=0.01)
+
+
+def test_backtest_includes_fees_and_slippage():
+    frame = pd.DataFrame({
+        "open": [100, 100, 100],
+        "close": [100, 100, 100],
+        "ema20": [1, 2, 3],
+        "ema50": [2, 1, 1],
+    })
+    result = backtest(frame, pd.Series([True, False, False]), fee=0.01, slippage=0.01)
+    assert result["final_balance"] < 1000
+    assert result["open_position"] is True
+
+
+def test_backtest_closes_position_on_next_open_after_exit_condition():
+    frame = pd.DataFrame({
+        "open": [100, 100, 110, 120],
+        "close": [100, 100, 110, 120],
+        "ema20": [1, 2, 1, 1],
+        "ema50": [2, 1, 2, 2],
+    })
+    signals = pd.Series([True, False, False, False])
+    result = backtest(frame, signals, fee=0, slippage=0)
+    assert result["closed_trade_count"] == 1
+    assert result["open_position"] is False
+    assert result["final_balance"] == pytest.approx(1100)
+
+
+@pytest.mark.parametrize("fee,slippage", [(-0.1, 0), (1, 0), (0, -0.1), (0, 1)])
+def test_backtest_rejects_invalid_costs(fee, slippage):
+    frame = pd.DataFrame({
+        "open": [100, 100], "close": [100, 100],
+        "ema20": [1, 1], "ema50": [2, 2],
+    })
+    with pytest.raises(ValueError):
+        backtest(frame, pd.Series([False, False]), fee=fee, slippage=slippage)
