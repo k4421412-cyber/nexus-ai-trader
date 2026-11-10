@@ -37,15 +37,18 @@ def _event_digest(event):
 class SimulatedInvestmentPool:
     """Virtual allocations with pro-rata P/L, HWM and an auditable event chain."""
 
-    def __init__(self, manager_profit_share_bps=0, *, ledger_path=None, encryption_key=None):
-        if isinstance(manager_profit_share_bps, bool) or not isinstance(manager_profit_share_bps, int):
-            raise ValueError("manager_profit_share_bps must be an integer")
-        if not 0 <= manager_profit_share_bps <= 10000:
-            raise ValueError("manager_profit_share_bps must be between 0 and 10000")
+    def __init__(self, manager_profit_share_bps=None, *, ledger_path=None, encryption_key=None):
+        if manager_profit_share_bps is not None and (
+            isinstance(manager_profit_share_bps, bool)
+            or not isinstance(manager_profit_share_bps, int)
+            or not 0 <= manager_profit_share_bps <= 10000
+        ):
+            raise ValueError("manager_profit_share_bps must be an integer between 0 and 10000")
         if (ledger_path is None) != (encryption_key is None):
             raise ValueError("ledger_path and encryption_key must be supplied together")
 
-        self.manager_profit_share_bps = manager_profit_share_bps
+        self.manager_profit_share_bps = 0 if manager_profit_share_bps is None else manager_profit_share_bps
+        self._requested_manager_share = manager_profit_share_bps
         self.investors = {}
         self.ledger = []
         self.total_contributed = Decimal("0")
@@ -63,7 +66,7 @@ class SimulatedInvestmentPool:
         if self.ledger_path is not None and self.ledger_path.exists():
             self._load()
         else:
-            self._append("pool_created", manager_profit_share_bps=manager_profit_share_bps)
+            self._append("pool_created", manager_profit_share_bps=self.manager_profit_share_bps)
 
     @property
     def persistent(self):
@@ -122,8 +125,12 @@ class SimulatedInvestmentPool:
             payload = json.loads(self._cipher.decrypt(self.ledger_path.read_bytes()).decode("utf-8"))
             if payload.get("schema_version") != 1:
                 raise ValueError("Unsupported encrypted ledger schema")
-            if payload.get("manager_profit_share_bps") != self.manager_profit_share_bps:
+            stored_share = payload.get("manager_profit_share_bps")
+            if self._requested_manager_share is not None and stored_share != self._requested_manager_share:
                 raise ValueError("Ledger manager share does not match configured share")
+            if isinstance(stored_share, bool) or not isinstance(stored_share, int) or not 0 <= stored_share <= 10000:
+                raise ValueError("Invalid manager share in encrypted ledger")
+            self.manager_profit_share_bps = stored_share
             events = payload.get("ledger")
             if not isinstance(events, list) or not events:
                 raise ValueError("Encrypted ledger has no valid event history")
@@ -166,6 +173,19 @@ class SimulatedInvestmentPool:
             self._persist()
         except Exception:
             self.ledger.pop()
+            raise
+
+    def set_manager_profit_share(self, basis_points):
+        if isinstance(basis_points, bool) or not isinstance(basis_points, int) or not 0 <= basis_points <= 10000:
+            raise ValueError("manager profit share must be an integer between 0 and 10000")
+        if self.started or self.investors:
+            raise ValueError("Manager share can only be changed before allocations or trading")
+        previous = self.manager_profit_share_bps
+        self.manager_profit_share_bps = basis_points
+        try:
+            self._append("manager_share_configured", manager_profit_share_bps=basis_points)
+        except Exception:
+            self.manager_profit_share_bps = previous
             raise
 
     def add_investor(self, investor_id, contribution):
