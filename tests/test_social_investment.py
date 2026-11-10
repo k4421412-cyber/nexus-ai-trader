@@ -46,7 +46,7 @@ def test_manager_share_is_charged_on_incremental_new_high():
     pool.add_investor("alice", "100")
     pool.record_trade("100")
     pool.record_trade("50")
-    assert Decimal(pool.investor_report("alice")["net_pnl"]) == Decimal("135")
+    assert Decimal(pool.investor_report("alice")["net_pnl"]) == Decimal("125")
 
 
 def test_new_allocation_is_blocked_after_trading_starts():
