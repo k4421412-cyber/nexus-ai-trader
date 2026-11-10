@@ -3,7 +3,7 @@ import pytest
 
 from nexus.indicators import add_indicators
 from nexus.paper import PaperWallet
-from nexus.strategies import backtest
+from nexus.strategies import backtest, ema_rsi_signals
 
 
 def test_rsi_is_100_in_persistent_uptrend():
@@ -249,3 +249,27 @@ def test_backtest_reports_trade_expectancy_and_market_exposure():
     assert result["gross_profit"] == pytest.approx(200)
     assert result["gross_loss"] == pytest.approx(0)
     assert result["exposure_pct"] == pytest.approx(66.67, abs=0.01)
+
+
+def test_ema_rsi_signals_detect_valid_bullish_crossover():
+    frame = pd.DataFrame({
+        "ema20": [9.0, 11.0, 12.0],
+        "ema50": [10.0, 10.0, 10.5],
+        "rsi": [55.0, 60.0, 65.0],
+    })
+    result = ema_rsi_signals(frame)
+    assert result.tolist() == [False, True, False]
+
+
+def test_ema_rsi_signals_reject_overbought_crossover():
+    frame = pd.DataFrame({
+        "ema20": [9.0, 11.0],
+        "ema50": [10.0, 10.0],
+        "rsi": [60.0, 70.0],
+    })
+    assert ema_rsi_signals(frame).tolist() == [False, False]
+
+
+def test_ema_rsi_signals_require_indicator_columns():
+    with pytest.raises(ValueError, match="Missing signal columns"):
+        ema_rsi_signals(pd.DataFrame({"ema20": [1.0], "ema50": [0.5]}))
