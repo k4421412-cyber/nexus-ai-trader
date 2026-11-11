@@ -77,11 +77,11 @@ def test_mobile_viewports_render_all_pages_without_horizontal_overflow(running_a
             # narrow-screen sidebar drawer).
             nav_item = sidebar.get_by_role("radio", name=page_name)
             nav_item.wait_for(state="visible", timeout=8000)
-            # Streamlit renders the radio input outside the narrow mobile
-            # viewport and exposes its visible label as the actual hit target.
-            # Force-check the accessible radio input to trigger its change event
-            # without relying on an off-screen pointer click.
-            nav_item.check(force=True, timeout=8000)
+            # Streamlit's React-Aria radio input is visually positioned outside
+            # the mobile viewport. Trigger its native click event directly;
+            # this exercises the same input event without a pointer hit-test.
+            nav_item.evaluate("(element) => element.click()")
+            page.wait_for_timeout(150)
             assert nav_item.is_checked(), f"Navigation did not select {page_name}"
             page.wait_for_timeout(250)
             dimensions = page.evaluate(
