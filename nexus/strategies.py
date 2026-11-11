@@ -32,6 +32,30 @@ def ema_rsi_signals(df):
     return buy.fillna(False)
 
 
+def strategy_signal_sets(df):
+    required = {'close', 'high', 'low', 'ema20', 'ema50', 'rsi'}
+    missing = required.difference(df.columns)
+    if missing:
+        raise ValueError(f'Missing strategy columns: {', '.join(sorted(missing))}')
+    close = pd.to_numeric(df['close'], errors='coerce')
+    high = pd.to_numeric(df['high'], errors='coerce')
+    low = pd.to_numeric(df['low'], errors='coerce')
+    ema20 = pd.to_numeric(df['ema20'], errors='coerce')
+    ema50 = pd.to_numeric(df['ema50'], errors='coerce')
+    rsi = pd.to_numeric(df['rsi'], errors='coerce')
+    macd = close.ewm(span=12, adjust=False).mean() - close.ewm(span=26, adjust=False).mean()
+    macd_signal = macd.ewm(span=9, adjust=False).mean()
+    mid = close.rolling(20, min_periods=20).mean()
+    lower = mid - 2 * close.rolling(20, min_periods=20).std(ddof=0)
+    prior_high = high.shift(1).rolling(20, min_periods=20).max()
+    prior_low = low.shift(1).rolling(10, min_periods=10).min()
+    return {
+        'EMA20/EMA50 + RSI': (ema_rsi_signals(df), ema20 < ema50),
+        'MACD crossover': ((macd > macd_signal) & (macd.shift(1) <= macd_signal.shift(1)), (macd < macd_signal) & (macd.shift(1) >= macd_signal.shift(1))),
+        'Bollinger mean reversion': (close < lower, close >= mid),
+        'Donchian breakout': (close > prior_high, close < prior_low),
+        'RSI mean reversion': (rsi < 30, rsi > 55),
+    }
 def _validated_signals(signals, expected_length):
     values = np.asarray(signals, dtype=object)
     if values.ndim != 1:
@@ -63,6 +87,7 @@ def backtest(
     fee=0.001,
     slippage=0.0005,
     initial_balance=1000.0,
+    exit_signals=None,
 ):
     """Long-only backtest; close-based signals fill at the next candle open."""
     required = {"open", "close", "ema20", "ema50"}
@@ -73,6 +98,7 @@ def backtest(
         raise ValueError("At least two candles are required for backtesting")
 
     signal_values = _validated_signals(signals, len(df))
+    exit_values = None if exit_signals is None else _validated_signals(exit_signals, len(df))
 
     try:
         fee = float(fee)
@@ -105,13 +131,13 @@ def backtest(
     exposed_bars = 0
     # Signals are evaluated on a completed candle and executed at the next candle open.
     entry_signal_count = int(signal_values.iloc[:-1].sum())
-    exit_condition_count = int((market["ema20"].iloc[:-1] < market["ema50"].iloc[:-1]).sum())
+    exit_condition_count = int((market["ema20"].iloc[:-1] < market["ema50"].iloc[:-1]).sum()) if exit_values is None else int(exit_values.iloc[:-1].sum())
     executed_entry_count = 0
     executed_exit_count = 0
 
     for i in range(1, len(market)):
         execution_open = float(market.iloc[i]["open"])
-        should_exit = float(market.iloc[i - 1]["ema20"]) < float(market.iloc[i - 1]["ema50"])
+        should_exit = (float(market.iloc[i - 1]["ema20"]) < float(market.iloc[i - 1]["ema50"])) if exit_values is None else bool(exit_values.iloc[i - 1])
         should_enter = bool(signal_values.iloc[i - 1])
 
         if units > 0 and should_exit:
@@ -186,3 +212,11 @@ def backtest(
         "closed_trades": closed_trades,
         "equity_curve": [round(value, 4) for value in equity_curve],
     }
+
+
+def compare_strategies(df, fee=0.001, slippage=0.0005, initial_balance=1000.0):
+    results = []
+    for name, (entries, exits) in strategy_signal_sets(df).items():
+        report = backtest(df, entries, fee=fee, slippage=slippage, initial_balance=initial_balance, exit_signals=exits)
+        results.append({'strategy': name, **report})
+    return sorted(results, key=lambda item: item['estimated_liquidation_return_pct'], reverse=True)
