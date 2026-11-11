@@ -1,9 +1,11 @@
 import os
+import json
+from datetime import datetime, timezone
 import streamlit as st
 import pandas as pd
 from nexus.market_data import fetch_ohlcv
 from nexus.indicators import add_indicators
-from nexus.strategies import ema_rsi_signals, backtest
+from nexus.strategies import ema_rsi_signals, backtest, compare_strategies
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.knowledge import save_note, load_notes
@@ -14,6 +16,10 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap');
 html, body, [class*="css"] {font-family: Vazirmatn, sans-serif;}
+[data-testid="stAppViewContainer"] {background:radial-gradient(ellipse at 12% 0%,rgba(34,211,238,.16),transparent 38%),linear-gradient(135deg,#0b1220 0%,#111b31 55%,#17233d 100%);}
+[data-testid="stSidebar"] {background:linear-gradient(180deg,#101a2d,#17243d);border-left:1px solid rgba(34,211,238,.25);}
+[data-testid="stMetric"] {background:rgba(22,36,59,.82);border:1px solid rgba(34,211,238,.22);padding:14px;border-radius:14px;}
+.stButton button {border-radius:10px;border:1px solid rgba(34,211,238,.45);background:linear-gradient(110deg,#0e7490,#4f46e5);color:white;font-weight:700;}
 .block-container {direction: rtl; text-align: right; max-width: 100%; padding-left: 1rem; padding-right: 1rem;}
 [data-testid="stSidebar"] {direction: rtl;}
 [data-testid="stDataFrame"], [data-testid="stTable"] {max-width: 100%; overflow-x: auto;}
@@ -65,6 +71,18 @@ elif page == "تحلیل بازار":
     symbol = st.text_input("نماد", "BTC/USDT")
     timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1)
     limit = st.slider("تعداد کندل", 100, 1000, 300, 50)
+
+    if st.button("🔌 بررسی اتصال و نماد در این صرافی"):
+        try:
+            probe = fetch_ohlcv(exchange, symbol, timeframe, 100)
+            st.success(
+                f"اتصال موفق است؛ {len(probe)} کندل دریافت شد. "
+                f"نماد استاندارد: {probe.attrs.get('resolved_symbol', symbol)}"
+            )
+        except Exception as e:
+            st.error(f"نتیجه بررسی اتصال: {e}")
+            st.caption("خطای محدودیت منطقه‌ای یا مسدودبودن سرویس با تغییر کد قابل دورزدن نیست؛ از صرافی‌ای استفاده کن که رسماً از محل اتصال تو در دسترس است.")
+
     if st.button("دریافت و تحلیل", type="primary"):
         try:
             df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, limit))
@@ -83,21 +101,109 @@ elif page == "آزمایشگاه استراتژی":
     timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="bt_tf")
     fee = st.number_input("کارمزد هر سمت (%)", 0.0, 1.0, 0.1, 0.01) / 100
     slippage = st.number_input("لغزش هر سمت (%)", 0.0, 1.0, 0.05, 0.01) / 100
+
+    st.markdown("### مقایسه خودکار استراتژی‌ها")
+    st.caption("۲۰ استراتژی از خانواده‌های روند، مومنتوم، شکست، بازگشت به میانگین، نوسان، حجم و الگوهای کندلی با داده و هزینه یکسان مقایسه می‌شوند.")
+    if st.button("🚀 اجرای مقایسه خودکار همه استراتژی‌های کتابخانه", type="primary"):
+        try:
+            auto_df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 1000))
+            reports = compare_strategies(auto_df, fee=fee, slippage=slippage)
+            st.session_state["auto_strategy_reports"] = reports
+            st.session_state["auto_strategy_meta"] = {
+                "exchange": exchange.upper(), "requested_symbol": symbol.upper(),
+                "resolved_symbol": auto_df.attrs.get("resolved_symbol", symbol.strip()),
+                "timeframe": timeframe, "candles": len(auto_df),
+                "fee_per_side_pct": fee * 100, "slippage_per_side_pct": slippage * 100,
+                "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            }
+            st.session_state["auto_strategy_report_payload"] = {
+                "project": "NEXUS AI TRADER", "report_type": "automatic_strategy_comparison",
+                "metadata": st.session_state["auto_strategy_meta"], "results": reports,
+                "strategy_count": len(reports), "strategy_names": [item["strategy"] for item in reports],
+                "chatgpt_review_instructions": "این گزارش را مانند یک پژوهشگر کمی بررسی کن. کیفیت داده، تعداد معاملات، هزینه‌ها، نرخ برد، امید ریاضی، Profit Factor، افت سرمایه و احتمال بیش‌برازش را ارزیابی کن. فقط با شواهد موجود نتیجه بگیر؛ استراتژی کم‌نمونه را برنده اعلام نکن. برای هر روش ضعیف، ۲ تا ۳ اصلاح مشخص و قابل‌بک‌تست پیشنهاد بده و فرضیه‌ها را از نتایج اثبات‌شده جدا کن. هیچ سود آینده‌ای را تضمین نکن.",
+                "notice": "Historical simulation only; not financial advice or a guarantee of future returns."
+            }
+        except Exception as e:
+            st.error(f"مقایسه خودکار انجام نشد: {e}")
+
+    if st.session_state.get("auto_strategy_reports"):
+        meta = st.session_state.get("auto_strategy_meta", {})
+        st.caption(
+            f"بازار: {meta.get('exchange')} | نماد درخواستی: {meta.get('requested_symbol')} | "
+            f"نماد استاندارد: {meta.get('resolved_symbol')} | تایم‌فریم: {meta.get('timeframe')} | "
+            f"کندل: {meta.get('candles')} | زمان UTC: {meta.get('generated_at_utc')}"
+        )
+        rows = [{
+            "استراتژی": x["strategy"],
+            "بازده پس از هزینه خروج (%)": x["estimated_liquidation_return_pct"],
+            "معاملات بسته‌شده": x["closed_trade_count"],
+            "نرخ برد (%)": x["win_rate_pct"],
+            "Profit Factor": x["profit_factor"],
+            "افت سرمایه (%)": x["max_drawdown_pct"],
+            "امید ریاضی (USDT)": x["expectancy_per_closed_trade"],
+        } for x in st.session_state["auto_strategy_reports"]]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        eligible = [x for x in st.session_state["auto_strategy_reports"] if x["candidate_eligible"]]
+        if eligible:
+            best = eligible[0]
+            st.success("نامزد واجد شرایط اولیه (حداقل ۱۰۰ معامله، نرخ برد حداقل ۸۰٪ و امید ریاضی مثبت): " + best["strategy"])
+        else:
+            st.warning("هنوز هیچ استراتژی تمام شروط ارزیابی را ندارد: حداقل ۱۰۰ معامله بسته‌شده، نرخ برد حداقل ۸۰٪، امید ریاضی مثبت و Profit Factor بالاتر از ۱. این یعنی هنوز برنده تأییدشده نداریم.")
+        st.caption("رتبه‌بندی ابتدا نمونه‌های کافی و شروط کیفی را در اولویت می‌گذارد و سپس امتیاز تعدیل‌شده با افت سرمایه را مقایسه می‌کند؛ آزمون خارج از نمونه و walk-forward همچنان ضروری است.")
+        report_json = json.dumps(st.session_state["auto_strategy_report_payload"], ensure_ascii=False, indent=2, default=str)
+        st.download_button(
+            "📥 دریافت گزارش کامل برای بررسی",
+            data=report_json.encode("utf-8"),
+            file_name="nexus_strategy_report.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+        if st.button("📋 آماده‌سازی خلاصه برای ارسال در گفتگو"):
+            summary_lines = [
+                "NEXUS AI TRADER — گزارش مقایسه استراتژی‌ها",
+                f"بازار: {meta.get('exchange')} | نماد: {meta.get('resolved_symbol')} | تایم‌فریم: {meta.get('timeframe')}",
+                f"کندل‌ها: {meta.get('candles')} | زمان UTC: {meta.get('generated_at_utc')}",
+            ]
+            for item in st.session_state["auto_strategy_reports"]:
+                summary_lines.append(
+                    f"{item['strategy']}: بازده خروج {item['estimated_liquidation_return_pct']}%، "
+                    f"معاملات {item['closed_trade_count']}، برد {item['win_rate_pct']}%، "
+                    f"افت سرمایه {item['max_drawdown_pct']}%، PF {item['profit_factor']}"
+                )
+            st.code("\\n".join(summary_lines), language="text")
+            st.info("این گزارش را کپی کن یا فایل JSON را بفرست؛ من با دانش تحلیلی ChatGPT نتایج را بررسی می‌کنم، ضعف‌ها را پیدا می‌کنم و پیشنهادهای اصلاحی قابل‌آزمایش می‌دهم. این کار بدون API پولی انجام می‌شود، اما ارسال خودکار به گفتگو فعال نیست.")
+
+
     if st.button("اجرای بک‌تست"):
         try:
-            df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 500))
+            df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 300))
             signals = ema_rsi_signals(df)
             result = backtest(df, signals, fee, slippage)
+            resolved_symbol = df.attrs.get("resolved_symbol", symbol.strip())
             st.markdown("### نتیجه بک‌تست")
             st.caption(
-                f"بازار: {exchange.upper()} | نماد: {symbol.upper()} | "
-                f"تایم‌فریم: {timeframe} | تعداد کندل: {len(df)}"
+                f"بازار: {exchange.upper()} | نماد درخواستی: {symbol.upper()} | "
+                f"نماد استاندارد: {resolved_symbol.upper()} | "
+                f"تایم‌فریم: {timeframe} | تعداد کندل دریافت‌شده: {len(df)}"
             )
 
             m1, m2, m3 = st.columns(3)
             m1.metric("ارزش نهایی", f"{result['final_balance']:,.2f} USDT")
             m2.metric("بازده خالص", f"{result['net_return_pct']:.2f}%")
             m3.metric("تعداد معاملات بسته‌شده", result["closed_trade_count"])
+
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("سیگنال‌های ورود قابل اجرا", result["entry_signal_count"])
+            d2.metric("شرط‌های خروج مشاهده‌شده", result["exit_condition_count"])
+            d3.metric("ورودهای اجراشده", result["executed_entry_count"])
+            d4.metric("خروج‌های اجراشده", result["executed_exit_count"])
+            if result["closed_trade_count"] == 0:
+                if result["open_position"]:
+                    st.warning("سیگنال ورود اجرا شده، اما موقعیت تا پایان بازه بسته نشده است؛ نتیجه نهایی هنوز قطعی نیست.")
+                elif result["entry_signal_count"] == 0:
+                    st.warning("در این بازه هیچ سیگنال ورود قابل اجرایی تولید نشده است. این وضعیت به معنی سود یا زیان صفرِ یک استراتژیِ اثبات‌شده نیست.")
+                else:
+                    st.warning("سیگنال ورود وجود داشته، اما معامله بسته‌شده‌ای ثبت نشده است؛ جزئیات اجرای سفارش را بررسی کنید.")
 
             m4, m5, m6 = st.columns(3)
             m4.metric("نرخ برد", f"{result['win_rate_pct']:.2f}%")
