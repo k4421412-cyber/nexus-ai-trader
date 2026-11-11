@@ -14,6 +14,30 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap');
 html, body, [class*="css"] {font-family: Vazirmatn, sans-serif;}
+[data-testid="stAppViewContainer"] {
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(34,211,238,.16), transparent 38%),
+    linear-gradient(135deg, #0b1220 0%, #111b31 55%, #17233d 100%);
+  color: #e5edf8;
+}
+[data-testid="stHeader"] {background: rgba(11,18,32,.72);}
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, #101a2d 0%, #17243d 100%);
+  border-left: 1px solid rgba(34,211,238,.25);
+}
+[data-testid="stMetric"] {
+  background: rgba(22,36,59,.82);
+  border: 1px solid rgba(34,211,238,.22);
+  padding: 14px;
+  border-radius: 14px;
+}
+.stButton button, [data-testid="stDownloadButton"] button {
+  border-radius: 10px;
+  border: 1px solid rgba(34,211,238,.45);
+  background: linear-gradient(110deg,#0e7490,#4f46e5);
+  color: white;
+  font-weight: 700;
+}
 .block-container {direction: rtl; text-align: right; max-width: 100%; padding-left: 1rem; padding-right: 1rem;}
 [data-testid="stSidebar"] {direction: rtl;}
 [data-testid="stDataFrame"], [data-testid="stTable"] {max-width: 100%; overflow-x: auto;}
