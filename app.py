@@ -143,13 +143,13 @@ elif page == "آزمایشگاه استراتژی":
             "امید ریاضی (USDT)": x["expectancy_per_closed_trade"],
         } for x in st.session_state["auto_strategy_reports"]]
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        eligible = [x for x in st.session_state["auto_strategy_reports"] if x["closed_trade_count"] >= 10]
+        eligible = [x for x in st.session_state["auto_strategy_reports"] if x["candidate_eligible"]]
         if eligible:
             best = eligible[0]
-            st.success("بهترین نتیجه موقت با حداقل ۱۰ معامله: " + best["strategy"])
+            st.success("نامزد واجد شرایط اولیه (حداقل ۱۰۰ معامله، نرخ برد حداقل ۸۰٪ و امید ریاضی مثبت): " + best["strategy"])
         else:
-            st.warning("هیچ استراتژی حداقل ۱۰ معامله بسته‌شده ندارد؛ نتیجه فعلاً برای انتخاب نهایی کافی نیست.")
-        st.caption("این رتبه‌بندی غربال اولیه است؛ آزمون خارج از نمونه و walk-forward هنوز لازم است.")
+            st.warning("هنوز هیچ استراتژی تمام شروط ارزیابی را ندارد: حداقل ۱۰۰ معامله بسته‌شده، نرخ برد حداقل ۸۰٪، امید ریاضی مثبت و Profit Factor بالاتر از ۱. این یعنی هنوز برنده تأییدشده نداریم.")
+        st.caption("رتبه‌بندی ابتدا نمونه‌های کافی و شروط کیفی را در اولویت می‌گذارد و سپس امتیاز تعدیل‌شده با افت سرمایه را مقایسه می‌کند؛ آزمون خارج از نمونه و walk-forward همچنان ضروری است.")
         report_json = json.dumps(st.session_state["auto_strategy_report_payload"], ensure_ascii=False, indent=2, default=str)
         st.download_button(
             "📥 دریافت گزارش کامل برای بررسی",
