@@ -140,3 +140,25 @@ def test_all_eleven_strategies_are_evaluated_separately_by_regime():
             assert "qualifies" in metrics
             if metrics["trades"] < 100:
                 assert metrics["qualifies"] is False
+
+
+
+def test_forced_exit_deducts_final_fee_and_slippage_from_realized_metrics():
+    market = pd.DataFrame({
+        "open": [100.0, 100.0, 100.0],
+        "close": [100.0, 100.0, 110.0],
+    })
+    result = run_backtest(
+        market, [False, True, False], [False, False, False],
+        fee=0.01, slippage=0.01, initial_balance=1000,
+    )
+    expected_units = 1000 / (100 * 1.01)
+    expected_balance = expected_units * 110 * 0.99 * 0.99
+    assert result["trades"] == 1
+    assert result["trade_log"][0]["forced_exit"] is True
+    assert np.isclose(result["liquidation_balance"], expected_balance)
+    assert np.isclose(
+        result["net_return_pct"],
+        (expected_balance / 1000 - 1) * 100,
+    )
+    assert result["equity_curve"][-1] == result["liquidation_balance"]
