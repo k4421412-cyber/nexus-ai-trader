@@ -57,6 +57,7 @@ def test_walk_forward_first_fold_is_not_influenced_by_future_test_data():
     {"train_size": 1, "test_size": 3},
     {"train_size": 6, "test_size": 0},
     {"train_size": 6, "test_size": 3, "step_size": 0},
+    {"train_size": 6, "test_size": 3, "step_size": 2},
 ])
 def test_walk_forward_rejects_invalid_window_sizes(kwargs):
     with pytest.raises(ValueError):
