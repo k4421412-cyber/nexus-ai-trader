@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 
-from nexus.strategy_lab import (\n    compare_all, evaluate_by_condition, qualifies_strategy,\n    run_backtest, strategy_signals,\n)
+from nexus.strategy_lab import (
+    compare_all, evaluate_by_condition, qualifies_strategy,
+    run_backtest, strategy_signals,
+)
 
 
 def sample_market(n=500):
