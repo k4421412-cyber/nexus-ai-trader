@@ -1,4 +1,5 @@
 import ccxt
+from ccxt.base.errors import AuthenticationError, ExchangeNotAvailable, ExchangeError, NetworkError, RateLimitExceeded, RequestTimeout, BadSymbol
 import numpy as np
 import pandas as pd
 
@@ -36,7 +37,36 @@ def fetch_ohlcv(exchange_id="binance", symbol="BTC/USDT", timeframe="1h", limit=
                 "Use a listed market such as BTC/USDT or check the exchange's market list."
             )
 
-    rows = exchange.fetch_ohlcv(resolved_symbol, timeframe=timeframe, limit=limit)
+    try:
+        if exchange.has.get("fetchOHLCV") is False:
+            raise RuntimeError(f"{exchange_id.upper()} does not support OHLCV candles through this API.")
+        if exchange.timeframes and timeframe not in exchange.timeframes:
+            supported = ", ".join(list(exchange.timeframes.keys())[:20])
+            raise ValueError(
+                f"Timeframe '{timeframe}' is not supported by {exchange_id.upper()}. "
+                f"Examples: {supported}"
+            )
+        rows = exchange.fetch_ohlcv(resolved_symbol, timeframe=timeframe, limit=limit)
+    except BadSymbol as exc:
+        raise ValueError(
+            f"Symbol '{requested_symbol}' is not recognized by {exchange_id.upper()}. "
+            "Check the exchange's spot market list and use its CCXT symbol format."
+        ) from exc
+    except RateLimitExceeded as exc:
+        raise RuntimeError(f"{exchange_id.upper()} rate limit reached. Wait briefly and retry.") from exc
+    except RequestTimeout as exc:
+        raise RuntimeError(f"{exchange_id.upper()} request timed out. Check the connection and retry.") from exc
+    except NetworkError as exc:
+        raise RuntimeError(f"Network error while contacting {exchange_id.upper()}. The server may be unreachable.") from exc
+    except ExchangeNotAvailable as exc:
+        raise RuntimeError(
+            f"{exchange_id.upper()} is temporarily unavailable from this network or region. "
+            "This app cannot bypass exchange access restrictions; try an officially accessible exchange."
+        ) from exc
+    except AuthenticationError as exc:
+        raise RuntimeError(f"{exchange_id.upper()} requires authentication for this request or rejected access.") from exc
+    except ExchangeError as exc:
+        raise RuntimeError(f"{exchange_id.upper()} rejected the market-data request: {str(exc)[:240]}") from exc
     if not rows:
         raise RuntimeError("No market data returned")
 
