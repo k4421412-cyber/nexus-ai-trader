@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 from nexus.market_data import fetch_ohlcv
 from nexus.indicators import add_indicators
-from nexus.strategies import ema_rsi_signals, backtest
+from nexus.strategies import ema_rsi_signals, backtest, compare_strategies
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.knowledge import save_note, load_notes
@@ -14,6 +14,10 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap');
 html, body, [class*="css"] {font-family: Vazirmatn, sans-serif;}
+[data-testid="stAppViewContainer"] {background:radial-gradient(ellipse at 12% 0%,rgba(34,211,238,.16),transparent 38%),linear-gradient(135deg,#0b1220 0%,#111b31 55%,#17233d 100%);}
+[data-testid="stSidebar"] {background:linear-gradient(180deg,#101a2d,#17243d);border-left:1px solid rgba(34,211,238,.25);}
+[data-testid="stMetric"] {background:rgba(22,36,59,.82);border:1px solid rgba(34,211,238,.22);padding:14px;border-radius:14px;}
+.stButton button {border-radius:10px;border:1px solid rgba(34,211,238,.45);background:linear-gradient(110deg,#0e7490,#4f46e5);color:white;font-weight:700;}
 .block-container {direction: rtl; text-align: right; max-width: 100%; padding-left: 1rem; padding-right: 1rem;}
 [data-testid="stSidebar"] {direction: rtl;}
 [data-testid="stDataFrame"], [data-testid="stTable"] {max-width: 100%; overflow-x: auto;}
@@ -83,6 +87,38 @@ elif page == "آزمایشگاه استراتژی":
     timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="bt_tf")
     fee = st.number_input("کارمزد هر سمت (%)", 0.0, 1.0, 0.1, 0.01) / 100
     slippage = st.number_input("لغزش هر سمت (%)", 0.0, 1.0, 0.05, 0.01) / 100
+
+    st.markdown("### مقایسه خودکار استراتژی‌ها")
+    st.caption("پنج روش ثابت با داده، کارمزد و لغزش یکسان آزمایش می‌شوند؛ پارامترها روی داده آینده تنظیم نمی‌شوند.")
+    if st.button("🚀 اجرای مقایسه خودکار ۵ استراتژی", type="primary"):
+        try:
+            auto_df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 1000))
+            st.session_state["auto_strategy_reports"] = compare_strategies(auto_df, fee=fee, slippage=slippage)
+            st.session_state["auto_strategy_meta"] = (exchange.upper(), symbol.upper(), timeframe, len(auto_df))
+        except Exception as e:
+            st.error(f"مقایسه خودکار انجام نشد: {e}")
+
+    if st.session_state.get("auto_strategy_reports"):
+        meta = st.session_state.get("auto_strategy_meta", ("", "", "", 0))
+        st.caption(f"بازار: {meta[0]} | نماد: {meta[1]} | تایم‌فریم: {meta[2]} | کندل: {meta[3]}")
+        rows = [{
+            "استراتژی": x["strategy"],
+            "بازده پس از هزینه خروج (%)": x["estimated_liquidation_return_pct"],
+            "معاملات بسته‌شده": x["closed_trade_count"],
+            "نرخ برد (%)": x["win_rate_pct"],
+            "Profit Factor": x["profit_factor"],
+            "افت سرمایه (%)": x["max_drawdown_pct"],
+            "امید ریاضی (USDT)": x["expectancy_per_closed_trade"],
+        } for x in st.session_state["auto_strategy_reports"]]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        eligible = [x for x in st.session_state["auto_strategy_reports"] if x["closed_trade_count"] >= 10]
+        if eligible:
+            best = eligible[0]
+            st.success("بهترین نتیجه موقت با حداقل ۱۰ معامله: " + best["strategy"])
+        else:
+            st.warning("هیچ استراتژی حداقل ۱۰ معامله بسته‌شده ندارد؛ نتیجه فعلاً برای انتخاب نهایی کافی نیست.")
+        st.caption("این رتبه‌بندی غربال اولیه است؛ آزمون خارج از نمونه و walk-forward هنوز لازم است.")
+
     if st.button("اجرای بک‌تست"):
         try:
             df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 300))
