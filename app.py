@@ -12,48 +12,53 @@ from nexus.social_investment import SimulatedInvestmentPool
 st.set_page_config(page_title="NEXUS AI TRADER", page_icon="📈", layout="wide")
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap');
-html, body, [class*="css"] {font-family: Vazirmatn, sans-serif;}
-[data-testid="stAppViewContainer"] {
-  background:
-    radial-gradient(ellipse at 12% 0%, rgba(34,211,238,.16), transparent 38%),
-    linear-gradient(135deg, #0b1220 0%, #111b31 55%, #17233d 100%);
-  color: #e5edf8;
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
+html, body, [class*="css"], button, input, textarea {font-family:Vazirmatn,sans-serif;}
+[data-testid="stAppViewContainer"] {background:radial-gradient(ellipse at 8% 0%,rgba(0,195,255,.18),transparent 34%),radial-gradient(ellipse at 92% 18%,rgba(139,92,246,.13),transparent 32%),linear-gradient(145deg,#030817 0%,#07142d 55%,#080d22 100%);color:#edf6ff;}
+[data-testid="stHeader"] {background:rgba(3,8,23,.78);}
+[data-testid="stSidebar"] {background:linear-gradient(180deg,#07152d,#0c1732);border-left:1px solid rgba(34,211,238,.3);}
+.block-container {direction:rtl;text-align:right;max-width:1500px;padding:1.3rem 1.4rem 2rem;}
+h1,h2,h3 {letter-spacing:-.35px;}
+[data-testid="stMetric"] {background:linear-gradient(145deg,rgba(8,35,67,.95),rgba(10,19,47,.96));border:1px solid rgba(0,195,255,.48);border-radius:17px;padding:16px 18px;box-shadow:0 0 18px rgba(0,174,255,.09);min-height:108px;}
+[data-testid="stMetricLabel"] {color:#a9c9e8;}
+[data-testid="stMetricValue"] {color:#f5fbff;font-weight:800;}
+.stButton button,[data-testid="stDownloadButton"] button {border-radius:12px;border:1px solid rgba(34,211,238,.65);background:linear-gradient(110deg,#075985,#4338ca);color:white;font-weight:700;min-height:44px;}
+.stButton button:hover {border-color:#22d3ee;color:white;box-shadow:0 0 16px rgba(34,211,238,.25);}
+[data-testid="stDataFrame"],[data-testid="stTable"] {max-width:100%;overflow-x:auto;}
+[data-testid="stAlert"] {border-radius:14px;}
+[data-testid="stRadio"] > label {display:none;}
+[data-testid="stRadio"] > div {gap:7px;flex-wrap:wrap;}
+[data-testid="stRadio"] label {background:rgba(9,29,61,.9);border:1px solid rgba(34,211,238,.28);border-radius:12px;padding:8px 13px;margin:0;color:#e8f5ff;}
+[data-testid="stRadio"] label:has(input:checked) {background:linear-gradient(110deg,rgba(3,155,220,.42),rgba(79,70,229,.45));border-color:#22d3ee;box-shadow:0 0 12px rgba(34,211,238,.2);}
+.nexus-hero {padding:18px 20px;border:1px solid rgba(34,211,238,.5);border-radius:20px;background:linear-gradient(110deg,rgba(5,29,62,.96),rgba(21,20,62,.92));box-shadow:0 0 24px rgba(0,174,255,.12);margin:4px 0 18px;}
+.nexus-kicker {color:#36d9f5;font-size:.82rem;font-weight:700;letter-spacing:1.1px;}
+.nexus-sub {color:#aac4e4;font-size:.94rem;margin-top:5px;}
+.nexus-panel {border:1px solid rgba(34,211,238,.35);border-radius:17px;padding:15px 17px;background:rgba(7,22,48,.82);margin:8px 0 14px;}
+.nexus-muted {color:#a9c4e2;font-size:.9rem;}
+@media (max-width:768px) {
+ [data-testid="stSidebar"] {display:none;}
+ [data-testid="stRadio"] {position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(3,10,27,.97);border-top:1px solid rgba(34,211,238,.55);padding:8px 5px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(0,0,0,.45);}
+ [data-testid="stRadio"] > div {display:flex;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:5px;scrollbar-width:none;}
+ [data-testid="stRadio"] > div::-webkit-scrollbar {display:none;}
+ [data-testid="stRadio"] label {flex:0 0 auto;padding:8px 10px;font-size:.78rem;white-space:nowrap;}
+ .block-container {padding:1rem .7rem 6.5rem;}
+ h1 {font-size:1.55rem!important;} h2 {font-size:1.25rem!important;}
+ [data-testid="stHorizontalBlock"] {flex-wrap:wrap;gap:.55rem;}
+ [data-testid="stHorizontalBlock"] > [data-testid="column"] {flex:1 1 calc(50% - .55rem)!important;min-width:calc(50% - .55rem)!important;}
+ [data-testid="stMetric"] {padding:12px;min-height:92px;}
+ [data-testid="stMetricValue"] {font-size:1.25rem;}
+ .nexus-hero {padding:15px;border-radius:16px;}
 }
-[data-testid="stHeader"] {background: rgba(11,18,32,.72);}
-[data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #101a2d 0%, #17243d 100%);
-  border-left: 1px solid rgba(34,211,238,.25);
-}
-[data-testid="stMetric"] {
-  background: rgba(22,36,59,.82);
-  border: 1px solid rgba(34,211,238,.22);
-  padding: 14px;
-  border-radius: 14px;
-}
-.stButton button, [data-testid="stDownloadButton"] button {
-  border-radius: 10px;
-  border: 1px solid rgba(34,211,238,.45);
-  background: linear-gradient(110deg,#0e7490,#4f46e5);
-  color: white;
-  font-weight: 700;
-}
-.block-container {direction: rtl; text-align: right; max-width: 100%; padding-left: 1rem; padding-right: 1rem;}
-[data-testid="stSidebar"] {direction: rtl;}
-[data-testid="stDataFrame"], [data-testid="stTable"] {max-width: 100%; overflow-x: auto;}
-.stButton button, [data-testid="stDownloadButton"] button {min-height: 44px;}
-@media (max-width: 640px) {
-  .block-container {padding-left: 0.65rem; padding-right: 0.65rem;}
-  [data-testid="stMetric"] {overflow-wrap: anywhere;}
-  h1 {font-size: 1.65rem;}
+@media (max-width:420px) {
+ [data-testid="stHorizontalBlock"] > [data-testid="column"] {flex:1 1 100%!important;min-width:100%!important;}
 }
 </style>
 """, unsafe_allow_html=True)
 st.title("🚀 NEXUS AI TRADER")
-st.caption("نسخه آزمایشی 0.2 | تحلیل بازار، آزمایش استراتژی و معاملات مجازی")
+st.caption("نسخه آزمایشی 0.3 | رابط واکنش‌گرا، تحلیل بازار و معاملات مجازی")
 pages = ["داشبورد", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
-page = st.sidebar.radio("بخش‌ها", pages)
+page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
 
 if "wallet" not in st.session_state:
     st.session_state.wallet = PaperWallet()
@@ -75,13 +80,36 @@ if "investment_pool" not in st.session_state:
     st.session_state.investment_pool = create_investment_pool()
 
 if page == "داشبورد":
-    st.subheader("داشبورد")
-    a, b, c = st.columns(3)
-    a.metric("نسخه", "0.2")
-    b.metric("حالت", "Paper Trading")
-    c.metric("سرمایه مجازی", f"{st.session_state.wallet.cash:,.2f} USDT")
-    st.info("این نسخه MVP است؛ پیش از استفاده مالی، نتایج را مستقل بررسی کنید.")
-    st.write("از منوی کناری برای دریافت داده بازار، بک‌تست و بررسی جفت‌ارزهای DEX استفاده کنید.")
+    st.markdown("""
+    <div class="nexus-hero">
+      <div class="nexus-kicker">NEXUS AI TRADER · PAPER MODE</div>
+      <h1 style="margin:5px 0 0;color:#f4fbff;">داشبورد معاملاتی</h1>
+      <div class="nexus-sub">تحلیل هوشمندتر، آزمایش دقیق‌تر؛ فعلاً فقط با سرمایه مجازی</div>
+    </div>
+    """, unsafe_allow_html=True)
+    wallet = st.session_state.wallet
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("موجودی نقد مجازی", f"{wallet.cash:,.2f} USDT")
+    m2.metric("موقعیت‌های باز", str(len(wallet.positions)))
+    m3.metric("حالت اجرا", "Paper Trading")
+    m4.metric("نسخه برنامه", "0.3 آزمایشی")
+    st.markdown("### وضعیت سامانه")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="nexus-panel"><b style="color:#22d3ee;">● محیط آزمایشی فعال</b><p class="nexus-muted">سفارش‌ها در این نسخه با موجودی مجازی ثبت می‌شوند؛ هیچ سفارش واقعی به صرافی ارسال نمی‌شود.</p></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="nexus-panel"><b style="color:#fbbf24;">● اتصال صرافی‌ها</b><p class="nexus-muted">اتصال حساب و ارسال سفارش واقعی هنوز پیاده‌سازی نشده است. داده بازار فقط از API عمومی دریافت می‌شود.</p></div>', unsafe_allow_html=True)
+    st.markdown("### دارایی‌های مجازی")
+    if wallet.positions:
+        positions_df = pd.DataFrame([{"نماد": symbol, "مقدار": quantity} for symbol, quantity in wallet.positions.items()])
+        st.dataframe(positions_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("هنوز موقعیت مجازی بازی وجود ندارد. برای شروع، از بخش تحلیل بازار داده دریافت کنید و استراتژی‌ها را در آزمایشگاه بررسی کنید.")
+    st.markdown("### دسترسی سریع")
+    q1, q2, q3 = st.columns(3)
+    q1.markdown('<div class="nexus-panel"><b>📊 تحلیل بازار</b><p class="nexus-muted">قیمت، اندیکاتورها و داده کندل‌ها</p></div>', unsafe_allow_html=True)
+    q2.markdown('<div class="nexus-panel"><b>🧪 آزمایشگاه استراتژی</b><p class="nexus-muted">بک‌تست با احتساب هزینه‌ها</p></div>', unsafe_allow_html=True)
+    q3.markdown('<div class="nexus-panel"><b>⚡ مرکز سیگنال‌ها</b><p class="nexus-muted">بررسی سیگنال‌های آموزشی</p></div>', unsafe_allow_html=True)
 
 elif page == "تحلیل بازار":
     st.subheader("تحلیل بازار")
