@@ -317,9 +317,63 @@ def backtest(
     }
 
 
-def compare_strategies(df, fee=0.001, slippage=0.0005, initial_balance=1000.0):
+def compare_strategies(
+    df, fee=0.001, slippage=0.0005, initial_balance=1000.0,
+    minimum_trades=100, minimum_win_rate_pct=80.0,
+):
+    """Compare the full library without promoting tiny samples as winners.
+
+    A strategy is only marked as a qualified candidate when it has at least
+    minimum_trades closed trades, meets the requested win-rate threshold,
+    has positive expectancy, and has a profit factor above 1.
+    """
+    if isinstance(minimum_trades, bool) or not isinstance(minimum_trades, int) or minimum_trades < 1:
+        raise ValueError("minimum_trades must be a positive integer")
+    try:
+        minimum_win_rate_pct = float(minimum_win_rate_pct)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("minimum_win_rate_pct must be numeric") from exc
+    if not math.isfinite(minimum_win_rate_pct) or not 0 <= minimum_win_rate_pct <= 100:
+        raise ValueError("minimum_win_rate_pct must be between 0 and 100")
+
     results = []
     for name, (entries, exits) in strategy_signal_sets(df).items():
-        report = backtest(df, entries, fee=fee, slippage=slippage, initial_balance=initial_balance, exit_signals=exits)
-        results.append({'strategy': name, **report})
-    return sorted(results, key=lambda item: item['estimated_liquidation_return_pct'], reverse=True)
+        report = backtest(
+            df, entries, fee=fee, slippage=slippage,
+            initial_balance=initial_balance, exit_signals=exits,
+        )
+        trades = report["closed_trade_count"]
+        expectancy = report["expectancy_per_closed_trade"]
+        pf = report["profit_factor"]
+        sample_sufficient = trades >= minimum_trades
+        positive_expectancy = expectancy is not None and expectancy > 0
+        profitable_factor = pf == "infinite" or (isinstance(pf, (int, float)) and pf > 1)
+        qualifies = (
+            sample_sufficient
+            and report["win_rate_pct"] >= minimum_win_rate_pct
+            and positive_expectancy
+            and profitable_factor
+        )
+        risk_adjusted_score = (
+            report["estimated_liquidation_return_pct"]
+            - 0.5 * report["max_drawdown_pct"]
+        )
+        results.append({
+            "strategy": name,
+            **report,
+            "minimum_trades_required": minimum_trades,
+            "sample_sufficient": sample_sufficient,
+            "passes_win_rate_threshold": report["win_rate_pct"] >= minimum_win_rate_pct,
+            "positive_expectancy": positive_expectancy,
+            "candidate_eligible": qualifies,
+            "risk_adjusted_score": round(risk_adjusted_score, 4),
+        })
+    return sorted(
+        results,
+        key=lambda item: (
+            item["candidate_eligible"],
+            item["sample_sufficient"],
+            item["risk_adjusted_score"],
+        ),
+        reverse=True,
+    )
