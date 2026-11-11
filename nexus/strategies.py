@@ -33,29 +33,132 @@ def ema_rsi_signals(df):
 
 
 def strategy_signal_sets(df):
-    required = {'close', 'high', 'low', 'ema20', 'ema50', 'rsi'}
+    """Return a broad, deterministic long-only strategy library.
+
+    All conditions are evaluated on completed candles and the backtester fills
+    at the next candle open. The library is deliberately indicator-based and
+    transparent; it does not claim to cover every strategy used worldwide.
+    """
+    required = {"open", "close", "high", "low"}
     missing = required.difference(df.columns)
     if missing:
-        raise ValueError('Missing strategy columns: ' + ', '.join(sorted(missing)))
-    close = pd.to_numeric(df['close'], errors='coerce')
-    high = pd.to_numeric(df['high'], errors='coerce')
-    low = pd.to_numeric(df['low'], errors='coerce')
-    ema20 = pd.to_numeric(df['ema20'], errors='coerce')
-    ema50 = pd.to_numeric(df['ema50'], errors='coerce')
-    rsi = pd.to_numeric(df['rsi'], errors='coerce')
+        raise ValueError("Missing strategy columns: " + ", ".join(sorted(missing)))
+
+    market = df.copy()
+    open_ = pd.to_numeric(market["open"], errors="coerce")
+    close = pd.to_numeric(market["close"], errors="coerce")
+    high = pd.to_numeric(market["high"], errors="coerce")
+    low = pd.to_numeric(market["low"], errors="coerce")
+    if not all(np.isfinite(s.to_numpy(dtype=float)).all() for s in (open_, close, high, low)):
+        raise ValueError("OHLC values must be finite numeric values")
+    if (pd.concat([open_, close, high, low], axis=1) <= 0).any().any():
+        raise ValueError("OHLC prices must be positive")
+
+    def ema(period):
+        return close.ewm(span=period, adjust=False, min_periods=period).mean()
+
+    def sma(period):
+        return close.rolling(period, min_periods=period).mean()
+
+    def cross_up(left, right):
+        return (left > right) & (left.shift(1) <= right.shift(1))
+
+    def cross_down(left, right):
+        return (left < right) & (left.shift(1) >= right.shift(1))
+
+    def pair(entry, exit_):
+        return entry.fillna(False).astype(bool), exit_.fillna(False).astype(bool)
+
+    ema9, ema20, ema21, ema50, ema200 = ema(9), ema(20), ema(21), ema(50), ema(200)
+    sma20, sma50 = sma(20), sma(50)
+    rsi = pd.to_numeric(market["rsi"], errors="coerce") if "rsi" in market else pd.Series(np.nan, index=market.index)
     macd = close.ewm(span=12, adjust=False).mean() - close.ewm(span=26, adjust=False).mean()
     macd_signal = macd.ewm(span=9, adjust=False).mean()
-    mid = close.rolling(20, min_periods=20).mean()
-    lower = mid - 2 * close.rolling(20, min_periods=20).std(ddof=0)
-    prior_high = high.shift(1).rolling(20, min_periods=20).max()
-    prior_low = low.shift(1).rolling(10, min_periods=10).min()
+    mid = sma(20)
+    deviation = close.rolling(20, min_periods=20).std(ddof=0)
+    upper, lower = mid + 2 * deviation, mid - 2 * deviation
+    prior_high20 = high.shift(1).rolling(20, min_periods=20).max()
+    prior_low20 = low.shift(1).rolling(20, min_periods=20).min()
+    prior_low10 = low.shift(1).rolling(10, min_periods=10).min()
+
+    previous_close = close.shift(1)
+    true_range = pd.concat(
+        [(high - low), (high - previous_close).abs(), (low - previous_close).abs()],
+        axis=1,
+    ).max(axis=1)
+    atr = true_range.rolling(14, min_periods=14).mean()
+    typical = (high + low + close) / 3
+    keltner_mid = ema20
+    keltner_upper, keltner_lower = keltner_mid + 1.5 * atr, keltner_mid - 1.5 * atr
+    roc10 = close.pct_change(10) * 100
+
+    # Stochastic oscillator.
+    lowest14 = low.rolling(14, min_periods=14).min()
+    highest14 = high.rolling(14, min_periods=14).max()
+    stoch_k = 100 * (close - lowest14) / (highest14 - lowest14).replace(0, np.nan)
+    stoch_d = stoch_k.rolling(3, min_periods=3).mean()
+
+    # Directional movement / ADX trend-strength filter.
+    up_move, down_move = high.diff(), -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    atr14 = true_range.rolling(14, min_periods=14).mean()
+    plus_di = 100 * plus_dm.rolling(14, min_periods=14).sum() / atr14.rolling(14, min_periods=14).sum().replace(0, np.nan)
+    minus_di = 100 * minus_dm.rolling(14, min_periods=14).sum() / atr14.rolling(14, min_periods=14).sum().replace(0, np.nan)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    adx = dx.rolling(14, min_periods=14).mean()
+
+    # Candlestick patterns use only completed OHLC candles.
+    body = (close - open_).abs()
+    candle_range = (high - low).replace(0, np.nan)
+    lower_wick = pd.concat([open_, close], axis=1).min(axis=1) - low
+    upper_wick = high - pd.concat([open_, close], axis=1).max(axis=1)
+    bullish_engulfing = (
+        (close > open_) & (close.shift(1) < open_.shift(1))
+        & (open_ <= close.shift(1)) & (close >= open_.shift(1))
+    )
+    hammer = (lower_wick >= 2 * body) & (upper_wick <= body) & (close > open_)
+
+    # Volume breakout is enabled only when usable volume is supplied.
+    if "volume" in market:
+        volume = pd.to_numeric(market["volume"], errors="coerce")
+        volume_mean = volume.rolling(20, min_periods=20).mean()
+        volume_surge = (volume > 1.5 * volume_mean) & (volume > 0)
+    else:
+        volume_surge = pd.Series(False, index=market.index)
+
     return {
-        'EMA20/EMA50 + RSI': (ema_rsi_signals(df), ema20 < ema50),
-        'MACD crossover': ((macd > macd_signal) & (macd.shift(1) <= macd_signal.shift(1)), (macd < macd_signal) & (macd.shift(1) >= macd_signal.shift(1))),
-        'Bollinger mean reversion': (close < lower, close >= mid),
-        'Donchian breakout': (close > prior_high, close < prior_low),
-        'RSI mean reversion': (rsi < 30, rsi > 55),
+        "EMA20/EMA50 + RSI": pair(
+            cross_up(ema20, ema50) & (rsi < 70), ema20 < ema50
+        ),
+        "EMA9/EMA21 crossover": pair(cross_up(ema9, ema21), cross_down(ema9, ema21)),
+        "SMA20/SMA50 crossover": pair(cross_up(sma20, sma50), cross_down(sma20, sma50)),
+        "EMA50/EMA200 trend": pair(
+            (close > ema50) & cross_up(ema20, ema50),
+            (close < ema50) | cross_down(ema20, ema50),
+        ),
+        "MACD crossover": pair(cross_up(macd, macd_signal), cross_down(macd, macd_signal)),
+        "MACD zero-line momentum": pair(cross_up(macd, pd.Series(0.0, index=market.index)), cross_down(macd, pd.Series(0.0, index=market.index))),
+        "Bollinger mean reversion": pair(close < lower, close >= mid),
+        "Bollinger breakout": pair((close > upper) & (close.shift(1) <= upper.shift(1)), close < mid),
+        "Donchian 20-bar breakout": pair(close > prior_high20, close < prior_low10),
+        "RSI mean reversion": pair(rsi < 30, rsi > 55),
+        "RSI momentum": pair(cross_up(rsi, pd.Series(50.0, index=market.index)) & (rsi < 70), rsi < 45),
+        "Stochastic reversal": pair(cross_up(stoch_k, stoch_d) & (stoch_k < 20), (stoch_k > 80) | cross_down(stoch_k, stoch_d)),
+        "10-bar ROC momentum": pair(cross_up(roc10, pd.Series(0.0, index=market.index)), cross_down(roc10, pd.Series(0.0, index=market.index))),
+        "ATR channel breakout": pair(close > (close.shift(1) + atr), close < ema20),
+        "Keltner channel reversion": pair(close < keltner_lower, close >= keltner_mid),
+        "ADX directional trend": pair((plus_di > minus_di) & (adx > 20) & cross_up(ema20, ema50), (plus_di < minus_di) | (adx < 15)),
+        "Bullish engulfing": pair(bullish_engulfing, close < open_),
+        "Hammer reversal": pair(hammer & (close < sma20), close > sma20),
+        "Volume-confirmed breakout": pair((close > prior_high20) & volume_surge, close < ema20),
+        "VWAP-style volume mean reversion": pair(
+            close < ((typical * market.get("volume", pd.Series(1.0, index=market.index)).fillna(0)).rolling(20, min_periods=20).sum()
+                     / market.get("volume", pd.Series(1.0, index=market.index)).fillna(0).rolling(20, min_periods=20).sum().replace(0, np.nan)),
+            close > ema20,
+        ),
     }
+
 def _validated_signals(signals, expected_length):
     values = np.asarray(signals, dtype=object)
     if values.ndim != 1:
