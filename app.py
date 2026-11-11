@@ -4,7 +4,7 @@ import pandas as pd
 from nexus.market_data import fetch_ohlcv
 from nexus.indicators import add_indicators
 from nexus.strategies import ema_rsi_signals, backtest
-from nexus.strategy_lab import compare_all
+from nexus.strategy_lab import compare_all, compare_by_regime
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.knowledge import save_note, load_notes
@@ -151,7 +151,9 @@ elif page == "آزمایشگاه استراتژی":
             with st.spinner("دریافت داده و اجرای بک‌تست ۱۱ استراتژی..."):
                 market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
                 results = compare_all(market, fee, slippage, initial_balance)
+                regime_results = compare_by_regime(market, fee, slippage, initial_balance)
             st.session_state["strategy_lab_results"] = results
+            st.session_state["strategy_lab_regime_results"] = regime_results
             st.session_state["strategy_lab_meta"] = {"exchange": exchange, "symbol": symbol, "timeframe": timeframe, "candles": len(market)}
             st.success(f"آزمایش {len(results)} استراتژی روی {len(market)} کندل انجام شد.")
         except Exception as exc:
@@ -197,6 +199,27 @@ elif page == "آزمایشگاه استراتژی":
             trades.index = range(1, len(trades) + 1)
             trades.index.name = "معامله"
             st.dataframe(trades.tail(100), use_container_width=True)
+
+        st.markdown("### ارزیابی جداگانه در وضعیت‌های بازار")
+        st.caption("وضعیت هر کندل با EMA50/EMA200 و ADX و فقط با داده‌های همان کندل و گذشته تخمین زده می‌شود. هر معامله بر اساس وضعیت بازار هنگام ورود دسته‌بندی می‌شود؛ نتایج وضعیت‌ها با هم میانگین‌گیری نمی‌شوند.")
+        regime_rows = []
+        for item in st.session_state.get("strategy_lab_regime_results", []):
+            for regime, metrics in item.get("by_regime", {}).items():
+                pf = metrics.get("profit_factor")
+                pf_text = "بی‌نهایت" if pf == "infinite" else (f"{pf:.2f}" if isinstance(pf, (int, float)) else "—")
+                regime_rows.append({
+                    "استراتژی": item["strategy"],
+                    "وضعیت بازار": {"bullish": "صعودی", "bearish": "نزولی", "sideways": "خنثی"}[regime],
+                    "معاملات بسته": metrics["trades"],
+                    "نرخ برد (%)": round(metrics["win_rate_pct"], 2),
+                    "بازده خالص (%)": round(metrics["net_return_pct"], 2),
+                    "Profit Factor": pf_text,
+                    "وضعیت پذیرش": "قبول اولیه" if metrics["qualifies"] else "رد / داده ناکافی",
+                })
+        if regime_rows:
+            st.dataframe(pd.DataFrame(regime_rows), use_container_width=True, hide_index=True)
+            st.caption("قانون پذیرش برای هر استراتژی در هر وضعیت جداگانه اعمال می‌شود: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت و Profit Factor بالاتر از ۱. وضعیت «داده ناکافی» به معنی تأیید نیست.")
+
         st.caption("معیار قبول اولیه: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت، Profit Factor بالاتر از ۱. آزمون خارج از نمونه و walk-forward هنوز لازم است؛ ۱۰۰ معامله با ۱۰۰ آزمایش مستقل یکسان نیست.")
     else:
         st.info("برای شروع، نماد و تایم‌فریم را انتخاب کن و روی «آزمایش همه استراتژی‌ها» بزن.")
