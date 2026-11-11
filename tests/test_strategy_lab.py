@@ -109,8 +109,8 @@ def test_regime_classifier_uses_only_current_and_past_candles():
 
 def test_regime_classifier_marks_warmup_as_insufficient_data():
     labels = classify_market_regime(sample_market(250))
-    assert (labels.iloc[:200] == "insufficient_data").all()
-    assert labels.iloc[200:].isin(["bullish", "bearish", "sideways"]).all()
+    assert (labels.iloc[:199] == "insufficient_data").all()
+    assert labels.iloc[199:].isin(["bullish", "bearish", "sideways"]).all()
 
 
 def test_all_eleven_strategies_are_evaluated_separately_by_regime():
