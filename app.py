@@ -37,11 +37,11 @@ h1,h2,h3 {letter-spacing:-.35px;}
 .nexus-muted {color:#a9c4e2;font-size:.9rem;}
 @media (max-width:768px) {
  [data-testid="stSidebar"] {display:none;}
- [data-testid="stRadio"] {position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(3,10,27,.97);border-top:1px solid rgba(34,211,238,.55);padding:8px 5px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(0,0,0,.45);}
- [data-testid="stRadio"] > div {display:flex;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:5px;scrollbar-width:none;}
- [data-testid="stRadio"] > div::-webkit-scrollbar {display:none;}
- [data-testid="stRadio"] label {flex:0 0 auto;padding:8px 10px;font-size:.78rem;white-space:nowrap;}
- .block-container {padding:1rem .7rem 6.5rem;}
+ [data-testid="stRadio"] {position:relative;z-index:1;background:rgba(3,10,27,.94);border:1px solid rgba(34,211,238,.42);border-radius:15px;padding:7px;margin:10px 0 18px;box-shadow:0 5px 18px rgba(0,0,0,.22);}
+ [data-testid="stRadio"] > div {display:flex;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:6px;scrollbar-width:thin;padding-bottom:3px;}
+ [data-testid="stRadio"] > div::-webkit-scrollbar {height:4px;}
+ [data-testid="stRadio"] label {flex:0 0 auto;padding:9px 12px;font-size:.8rem;white-space:nowrap;}
+ .block-container {padding:1rem .7rem 2rem;}
  h1 {font-size:1.55rem!important;} h2 {font-size:1.25rem!important;}
  [data-testid="stHorizontalBlock"] {flex-wrap:wrap;gap:.55rem;}
  [data-testid="stHorizontalBlock"] > [data-testid="column"] {flex:1 1 calc(50% - .55rem)!important;min-width:calc(50% - .55rem)!important;}
@@ -54,8 +54,13 @@ h1,h2,h3 {letter-spacing:-.35px;}
 }
 </style>
 """, unsafe_allow_html=True)
-st.title("🚀 NEXUS AI TRADER")
-st.caption("نسخه آزمایشی 0.3 | رابط واکنش‌گرا، تحلیل بازار و معاملات مجازی")
+st.markdown("""
+<div class="nexus-hero" style="margin-top:0">
+  <div class="nexus-kicker">NEXUS AI TRADER</div>
+  <h1 style="margin:4px 0;color:#f4fbff;">معاملات هوشمند، با کنترل کامل</h1>
+  <div class="nexus-sub">نسخه آزمایشی 0.3 · تحلیل بازار و معاملات مجازی</div>
+</div>
+""", unsafe_allow_html=True)
 pages = ["داشبورد", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
@@ -81,10 +86,9 @@ if "investment_pool" not in st.session_state:
 
 if page == "داشبورد":
     st.markdown("""
-    <div class="nexus-hero">
-      <div class="nexus-kicker">NEXUS AI TRADER · PAPER MODE</div>
-      <h1 style="margin:5px 0 0;color:#f4fbff;">داشبورد معاملاتی</h1>
-      <div class="nexus-sub">تحلیل هوشمندتر، آزمایش دقیق‌تر؛ فعلاً فقط با سرمایه مجازی</div>
+    <div class="nexus-panel" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <div><div class="nexus-kicker">CONTROL CENTER</div><h2 style="margin:3px 0;color:#f4fbff;">داشبورد اصلی</h2><div class="nexus-muted">نمای کلی وضعیت حساب آزمایشی و ابزارهای معاملاتی</div></div>
+      <div style="border:1px solid #10b981;color:#6ee7b7;border-radius:30px;padding:7px 13px;font-weight:700;">● حالت آزمایشی</div>
     </div>
     """, unsafe_allow_html=True)
     wallet = st.session_state.wallet
@@ -105,11 +109,13 @@ if page == "داشبورد":
         st.dataframe(positions_df, use_container_width=True, hide_index=True)
     else:
         st.info("هنوز موقعیت مجازی بازی وجود ندارد. برای شروع، از بخش تحلیل بازار داده دریافت کنید و استراتژی‌ها را در آزمایشگاه بررسی کنید.")
-    st.markdown("### دسترسی سریع")
-    q1, q2, q3 = st.columns(3)
-    q1.markdown('<div class="nexus-panel"><b>📊 تحلیل بازار</b><p class="nexus-muted">قیمت، اندیکاتورها و داده کندل‌ها</p></div>', unsafe_allow_html=True)
-    q2.markdown('<div class="nexus-panel"><b>🧪 آزمایشگاه استراتژی</b><p class="nexus-muted">بک‌تست با احتساب هزینه‌ها</p></div>', unsafe_allow_html=True)
-    q3.markdown('<div class="nexus-panel"><b>⚡ مرکز سیگنال‌ها</b><p class="nexus-muted">بررسی سیگنال‌های آموزشی</p></div>', unsafe_allow_html=True)
+    st.markdown("### ابزارهای اصلی")
+    for title, description in [
+        ("📊 تحلیل بازار", "قیمت، اندیکاتورها و داده کندل‌ها"),
+        ("🧪 آزمایشگاه استراتژی", "بک‌تست با احتساب کارمزد و لغزش"),
+        ("⚡ مرکز سیگنال‌ها", "بررسی سیگنال‌های آموزشی"),
+    ]:
+        st.markdown('<div class="nexus-panel"><b>' + title + '</b><div class="nexus-muted">' + description + '</div></div>', unsafe_allow_html=True)
 
 elif page == "تحلیل بازار":
     st.subheader("تحلیل بازار")
