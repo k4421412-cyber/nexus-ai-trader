@@ -201,8 +201,8 @@ def classify_market_regime(df, adx_threshold=20.0):
         raise ValueError("OHLC data contains missing or non-finite values")
     if (close <= 0).any() or (high <= 0).any() or (low <= 0).any():
         raise ValueError("OHLC prices must be positive")
-    ema50 = close.ewm(span=50, adjust=False).mean()
-    ema200 = close.ewm(span=200, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False, min_periods=50).mean()
+    ema200 = close.ewm(span=200, adjust=False, min_periods=200).mean()
     up_move = high.diff()
     down_move = -low.diff()
     plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
@@ -263,7 +263,7 @@ def compare_by_regime(df, fee=0.001, slippage=0.0005, initial_balance=1000.0):
             backtest = run_backtest(df, entry, exit_, fee, slippage, initial_balance)
             grouped = {key: [] for key in ("bullish", "bearish", "sideways")}
             for trade in backtest["trade_log"]:
-                regime = regimes.iloc[int(trade["entry_index"])]
+                regime = regimes.iloc[max(0, int(trade["entry_index"]) - 1)]
                 if regime in grouped:
                     grouped[regime].append(trade)
             by_regime = {}
