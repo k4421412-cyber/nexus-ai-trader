@@ -4,6 +4,7 @@ import pandas as pd
 from nexus.market_data import fetch_ohlcv
 from nexus.indicators import add_indicators
 from nexus.strategies import ema_rsi_signals, backtest
+from nexus.strategy_lab import compare_all
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.knowledge import save_note, load_notes
@@ -135,74 +136,70 @@ elif page == "تحلیل بازار":
             st.error(f"دریافت داده ناموفق بود: {e}")
 
 elif page == "آزمایشگاه استراتژی":
-    st.subheader("آزمایشگاه استراتژی")
-    exchange = st.selectbox("صرافی", ["binance", "okx", "bybit"], key="bt_ex")
-    symbol = st.text_input("نماد", "BTC/USDT", key="bt_symbol")
-    timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="bt_tf")
-    fee = st.number_input("کارمزد هر سمت (%)", 0.0, 1.0, 0.1, 0.01) / 100
-    slippage = st.number_input("لغزش هر سمت (%)", 0.0, 1.0, 0.05, 0.01) / 100
-    if st.button("اجرای بک‌تست"):
+    st.subheader("آزمایشگاه خودکار استراتژی‌ها")
+    st.caption("۱۱ روش معاملاتی روی داده تاریخی یکسان مقایسه می‌شوند؛ همه سفارش‌ها شبیه‌سازی هستند.")
+    exchange = st.selectbox("صرافی داده بازار", ["okx", "binance", "bybit"], key="auto_bt_ex")
+    symbol = st.text_input("نماد معاملاتی", "BTC/USDT", key="auto_bt_symbol")
+    timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_bt_tf")
+    candle_limit = st.slider("تعداد کندل تاریخی", 300, 1500, 1000, 100, key="auto_bt_limit")
+    col1, col2 = st.columns(2)
+    fee = col1.number_input("کارمزد هر سمت (%)", 0.0, 1.0, 0.1, 0.01, key="auto_bt_fee") / 100
+    slippage = col2.number_input("لغزش هر سمت (%)", 0.0, 1.0, 0.05, 0.01, key="auto_bt_slip") / 100
+    initial_balance = st.number_input("سرمایه اولیه مجازی (USDT)", 100.0, 100000.0, 1000.0, 100.0, key="auto_bt_balance")
+    if st.button("🚀 آزمایش همه استراتژی‌ها", type="primary", use_container_width=True):
         try:
-            df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 500))
-            signals = ema_rsi_signals(df)
-            result = backtest(df, signals, fee, slippage)
-            st.markdown("### نتیجه بک‌تست")
-            st.caption(
-                f"بازار: {exchange.upper()} | نماد: {symbol.upper()} | "
-                f"تایم‌فریم: {timeframe} | تعداد کندل: {len(df)}"
-            )
-
-            m1, m2, m3 = st.columns(3)
-            m1.metric("ارزش نهایی", f"{result['final_balance']:,.2f} USDT")
-            m2.metric("بازده خالص", f"{result['net_return_pct']:.2f}%")
-            m3.metric("تعداد معاملات بسته‌شده", result["closed_trade_count"])
-
-            m4, m5, m6 = st.columns(3)
-            m4.metric("نرخ برد", f"{result['win_rate_pct']:.2f}%")
-            m5.metric("بیشترین افت سرمایه", f"{result['max_drawdown_pct']:.2f}%")
-            pf = result["profit_factor"]
-            m6.metric("Profit Factor", str(pf) if pf is not None else "—")
-
-            m7, m8, m9 = st.columns(3)
-            m7.metric("ارزش برآوردی پس از خروج", f"{result['estimated_liquidation_balance']:,.2f} USDT")
-            m8.metric("بازده پس از هزینه خروج", f"{result['estimated_liquidation_return_pct']:.2f}%")
-            expectancy = result["expectancy_per_closed_trade"]
-            m9.metric("امید ریاضی هر معامله", f"{expectancy:,.2f} USDT" if expectancy is not None else "—")
-
-            st.markdown("#### نمودار ارزش سرمایه")
-            equity = pd.DataFrame({
-                "شماره کندل": range(len(result["equity_curve"])),
-                "ارزش سرمایه (USDT)": result["equity_curve"],
-            }).set_index("شماره کندل")
-            st.line_chart(equity, use_container_width=True)
-
-            if result["open_position"]:
-                st.info(
-                    f"در پایان بازه یک موقعیت باز وجود دارد؛ "
-                    f"تعداد واحد: {result['open_position_units']} | "
-                    f"ارزش برآوردی پس از کارمزد و لغزش خروج: "
-                    f"{result['estimated_liquidation_balance']:,.2f} USDT"
-                )
-            else:
-                st.caption("در پایان بازه موقعیت بازی وجود ندارد.")
-
-            st.markdown("#### جزئیات معاملات بسته‌شده")
-            if result["closed_trades"]:
-                trades = pd.DataFrame(result["closed_trades"])
-                trades.index = range(1, len(trades) + 1)
-                trades.index.name = "معامله"
-                st.dataframe(trades, use_container_width=True)
-            else:
-                st.info("در بازه انتخاب‌شده هیچ معامله‌ای بسته نشده است.")
-
-            st.caption(
-                "کارمزد و لغزش ورود و خروج معاملات بسته‌شده لحاظ شده‌اند؛ "
-                "برای موقعیت باز نیز ارزش برآوردی پس از هزینه خروج جداگانه محاسبه شده است. "
-                "این گزارش بک‌تست تاریخی است و سود آینده را تضمین نمی‌کند؛ "
-                "آزمون خارج از نمونه و walk-forward هنوز کامل نشده است."
-            )
-        except Exception as e:
-            st.error(str(e))
+            with st.spinner("دریافت داده و اجرای بک‌تست ۱۱ استراتژی..."):
+                market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
+                results = compare_all(market, fee, slippage, initial_balance)
+            st.session_state["strategy_lab_results"] = results
+            st.session_state["strategy_lab_meta"] = {"exchange": exchange, "symbol": symbol, "timeframe": timeframe, "candles": len(market)}
+            st.success(f"آزمایش {len(results)} استراتژی روی {len(market)} کندل انجام شد.")
+        except Exception as exc:
+            st.error(f"اجرای آزمایش ناموفق بود: {exc}")
+    results = st.session_state.get("strategy_lab_results")
+    if results:
+        meta = st.session_state.get("strategy_lab_meta", {})
+        qualified = [r for r in results if r.get("qualifies")]
+        st.markdown("### خلاصه مقایسه")
+        a, b, d = st.columns(3)
+        a.metric("روش‌های آزمایش‌شده", len(results))
+        b.metric("عبور از معیار اولیه", len(qualified))
+        d.metric("حداقل معاملات لازم", "۱۰۰ معامله بسته")
+        st.caption(f"بازار: {meta.get('exchange')} · {meta.get('symbol')} · {meta.get('timeframe')} · {meta.get('candles')} کندل")
+        if qualified:
+            st.success("حداقل یک استراتژی معیارهای اولیه را گذرانده؛ این نتیجه تأیید نهایی یا تضمین سود نیست.")
+        else:
+            st.warning("هیچ استراتژی همه معیارهای اولیه را نگذرانده است؛ هیچ روشی تأییدشده اعلام نمی‌شود.")
+        rows = []
+        for r in results:
+            pf = r.get("profit_factor")
+            pf_text = "بی‌نهایت" if pf == "infinite" else (f"{pf:.2f}" if isinstance(pf, (int, float)) else "—")
+            rows.append({"استراتژی": r["strategy"], "معاملات بسته": r.get("trades", 0),
+                         "نرخ برد (%)": round(r.get("win_rate_pct", 0), 2),
+                         "بازده خالص (%)": round(r.get("net_return_pct", 0), 2),
+                         "افت سرمایه (%)": round(r.get("max_drawdown_pct", 0), 2),
+                         "Profit Factor": pf_text, "وضعیت": "قبول اولیه" if r.get("qualifies") else "تأییدنشده"})
+        st.markdown("### جدول رتبه‌بندی")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        names = [r["strategy"] for r in results]
+        selected_name = st.selectbox("جزئیات کدام استراتژی؟", names, key="strategy_lab_detail")
+        selected = next(r for r in results if r["strategy"] == selected_name)
+        st.markdown(f"#### {selected_name}")
+        x1, x2, x3 = st.columns(3)
+        x1.metric("بازده خالص", f'{selected.get("net_return_pct", 0):.2f}%')
+        x2.metric("نرخ برد", f'{selected.get("win_rate_pct", 0):.2f}%')
+        x3.metric("بیشترین افت سرمایه", f'{selected.get("max_drawdown_pct", 0):.2f}%')
+        curve = pd.DataFrame({"شماره کندل": range(len(selected.get("equity_curve", []))), "ارزش حساب (USDT)": selected.get("equity_curve", [])}).set_index("شماره کندل")
+        if not curve.empty:
+            st.line_chart(curve, use_container_width=True)
+        if selected.get("trade_log"):
+            trades = pd.DataFrame(selected["trade_log"])
+            trades.index = range(1, len(trades) + 1)
+            trades.index.name = "معامله"
+            st.dataframe(trades.tail(100), use_container_width=True)
+        st.caption("معیار قبول اولیه: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت، Profit Factor بالاتر از ۱. آزمون خارج از نمونه و walk-forward هنوز لازم است؛ ۱۰۰ معامله با ۱۰۰ آزمایش مستقل یکسان نیست.")
+    else:
+        st.info("برای شروع، نماد و تایم‌فریم را انتخاب کن و روی «آزمایش همه استراتژی‌ها» بزن.")
 
 elif page == "مرکز سیگنال‌ها":
     st.subheader("مرکز سیگنال‌ها")
