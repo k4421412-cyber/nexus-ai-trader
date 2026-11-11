@@ -15,7 +15,28 @@ def fetch_ohlcv(exchange_id="binance", symbol="BTC/USDT", timeframe="1h", limit=
 
     exchange_cls = getattr(ccxt, exchange_id)
     exchange = exchange_cls({"enableRateLimit": True, "timeout": 20000})
-    rows = exchange.fetch_ohlcv(symbol.strip(), timeframe=timeframe, limit=limit)
+    requested_symbol = symbol.strip()
+    resolved_symbol = requested_symbol
+
+    # Accept exchange-native IDs such as OKX's SOL-USDT, while keeping
+    # CCXT's unified symbol (for example SOL/USDT) for fetch_ohlcv.
+    if "-" in requested_symbol and "/" not in requested_symbol:
+        markets = exchange.load_markets()
+        matches = [
+            market for market in markets.values()
+            if str(market.get("id", "")).upper() == requested_symbol.upper()
+            and market.get("active", True)
+        ]
+        if matches:
+            matches.sort(key=lambda market: (not market.get("spot", False), market.get("swap", False)))
+            resolved_symbol = matches[0]["symbol"]
+        else:
+            raise ValueError(
+                f"Market ID '{requested_symbol}' was not found on {exchange_id.upper()}. "
+                "Use a listed market such as BTC/USDT or check the exchange's market list."
+            )
+
+    rows = exchange.fetch_ohlcv(resolved_symbol, timeframe=timeframe, limit=limit)
     if not rows:
         raise RuntimeError("No market data returned")
 
@@ -34,4 +55,6 @@ def fetch_ohlcv(exchange_id="binance", symbol="BTC/USDT", timeframe="1h", limit=
         raise RuntimeError("Exchange returned inconsistent candle highs")
     if (df["low"] > df[["open", "close", "high"]].min(axis=1)).any():
         raise RuntimeError("Exchange returned inconsistent candle lows")
+    df.attrs["requested_symbol"] = requested_symbol
+    df.attrs["resolved_symbol"] = resolved_symbol
     return df
