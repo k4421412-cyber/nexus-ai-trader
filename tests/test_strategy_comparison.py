@@ -49,8 +49,21 @@ def test_compare_strategies_returns_complete_ranked_reports():
     reports = compare_strategies(market, fee=0.001, slippage=0.0005)
 
     assert len(reports) >= 20
-    returns = [report["estimated_liquidation_return_pct"] for report in reports]
-    assert returns == sorted(returns, reverse=True)
+    assert all(report["minimum_trades_required"] == 100 for report in reports)
+    assert all(report["sample_sufficient"] == (report["closed_trade_count"] >= 100) for report in reports)
+    assert all(report["candidate_eligible"] == (
+        report["sample_sufficient"]
+        and report["passes_win_rate_threshold"]
+        and report["positive_expectancy"]
+        and (report["profit_factor"] == "infinite" or (
+            isinstance(report["profit_factor"], (int, float)) and report["profit_factor"] > 1
+        ))
+    ) for report in reports)
+    ranked = [
+        (item["candidate_eligible"], item["sample_sufficient"], item["risk_adjusted_score"])
+        for item in reports
+    ]
+    assert ranked == sorted(ranked, reverse=True)
 
     required_fields = {
         "strategy",
@@ -60,6 +73,9 @@ def test_compare_strategies_returns_complete_ranked_reports():
         "max_drawdown_pct",
         "profit_factor",
         "expectancy_per_closed_trade",
+        "sample_sufficient",
+        "candidate_eligible",
+        "risk_adjusted_score",
     }
     for report in reports:
         assert required_fields.issubset(report)
