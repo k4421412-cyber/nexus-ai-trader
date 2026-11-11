@@ -38,9 +38,9 @@ def fetch_ohlcv(exchange_id="binance", symbol="BTC/USDT", timeframe="1h", limit=
             )
 
     try:
-        if exchange.has.get("fetchOHLCV") is False:
+        if getattr(exchange, "has", {}).get("fetchOHLCV") is False:
             raise RuntimeError(f"{exchange_id.upper()} does not support OHLCV candles through this API.")
-        if exchange.timeframes and timeframe not in exchange.timeframes:
+        if getattr(exchange, "timeframes", None) and timeframe not in exchange.timeframes:
             supported = ", ".join(list(exchange.timeframes.keys())[:20])
             raise ValueError(
                 f"Timeframe '{timeframe}' is not supported by {exchange_id.upper()}. "
