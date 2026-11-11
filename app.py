@@ -71,6 +71,18 @@ elif page == "تحلیل بازار":
     symbol = st.text_input("نماد", "BTC/USDT")
     timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1)
     limit = st.slider("تعداد کندل", 100, 1000, 300, 50)
+
+    if st.button("🔌 بررسی اتصال و نماد در این صرافی"):
+        try:
+            probe = fetch_ohlcv(exchange, symbol, timeframe, 100)
+            st.success(
+                f"اتصال موفق است؛ {len(probe)} کندل دریافت شد. "
+                f"نماد استاندارد: {probe.attrs.get('resolved_symbol', symbol)}"
+            )
+        except Exception as e:
+            st.error(f"نتیجه بررسی اتصال: {e}")
+            st.caption("خطای محدودیت منطقه‌ای یا مسدودبودن سرویس با تغییر کد قابل دورزدن نیست؛ از صرافی‌ای استفاده کن که رسماً از محل اتصال تو در دسترس است.")
+
     if st.button("دریافت و تحلیل", type="primary"):
         try:
             df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, limit))
