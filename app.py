@@ -103,8 +103,8 @@ elif page == "آزمایشگاه استراتژی":
     slippage = st.number_input("لغزش هر سمت (%)", 0.0, 1.0, 0.05, 0.01) / 100
 
     st.markdown("### مقایسه خودکار استراتژی‌ها")
-    st.caption("پنج روش ثابت با داده، کارمزد و لغزش یکسان آزمایش می‌شوند؛ پارامترها روی داده آینده تنظیم نمی‌شوند.")
-    if st.button("🚀 اجرای مقایسه خودکار ۵ استراتژی", type="primary"):
+    st.caption("۲۰ استراتژی از خانواده‌های روند، مومنتوم، شکست، بازگشت به میانگین، نوسان، حجم و الگوهای کندلی با داده و هزینه یکسان مقایسه می‌شوند.")
+    if st.button("🚀 اجرای مقایسه خودکار همه استراتژی‌های کتابخانه", type="primary"):
         try:
             auto_df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 1000))
             reports = compare_strategies(auto_df, fee=fee, slippage=slippage)
@@ -119,7 +119,7 @@ elif page == "آزمایشگاه استراتژی":
             st.session_state["auto_strategy_report_payload"] = {
                 "project": "NEXUS AI TRADER", "report_type": "automatic_strategy_comparison",
                 "metadata": st.session_state["auto_strategy_meta"], "results": reports,
-                "notice": "Historical simulation only; not financial advice or a guarantee of future returns."
+                "strategy_count": len(reports), "strategy_names": [item["strategy"] for item in reports],\n                "chatgpt_review_instructions": "این گزارش را مانند یک پژوهشگر کمی بررسی کن. کیفیت داده، تعداد معاملات، هزینه‌ها، نرخ برد، امید ریاضی، Profit Factor، افت سرمایه و احتمال بیش‌برازش را ارزیابی کن. فقط با شواهد موجود نتیجه بگیر؛ استراتژی کم‌نمونه را برنده اعلام نکن. برای هر روش ضعیف، ۲ تا ۳ اصلاح مشخص و قابل‌بک‌تست پیشنهاد بده و فرضیه‌ها را از نتایج اثبات‌شده جدا کن. هیچ سود آینده‌ای را تضمین نکن.",\n                "notice": "Historical simulation only; not financial advice or a guarantee of future returns."
             }
         except Exception as e:
             st.error(f"مقایسه خودکار انجام نشد: {e}")
@@ -169,7 +169,7 @@ elif page == "آزمایشگاه استراتژی":
                     f"افت سرمایه {item['max_drawdown_pct']}%، PF {item['profit_factor']}"
                 )
             st.code("\\n".join(summary_lines), language="text")
-            st.info("این خلاصه را کپی کن و در همین گفتگو بفرست تا نتایج را بررسی کنم.")
+            st.info("این گزارش را کپی کن یا فایل JSON را بفرست؛ من با دانش تحلیلی ChatGPT نتایج را بررسی می‌کنم، ضعف‌ها را پیدا می‌کنم و پیشنهادهای اصلاحی قابل‌آزمایش می‌دهم. این کار بدون API پولی انجام می‌شود، اما ارسال خودکار به گفتگو فعال نیست.")
 
 
     if st.button("اجرای بک‌تست"):
