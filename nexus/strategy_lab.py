@@ -157,19 +157,45 @@ def run_backtest(df, entry, exit_, fee=0.001, slippage=0.0005, initial_balance=1
     }
 
 
+def qualifies_strategy(metrics, min_trades=100, min_win_rate_pct=80.0):
+    """Apply the hard eligibility gate to one strategy in one market/condition."""
+    try:
+        trades = int(metrics.get("trades", 0))
+        win_rate = float(metrics.get("win_rate_pct", 0.0))
+        net_return = float(metrics.get("net_return_pct", 0.0))
+        expectancy = metrics.get("expectancy")
+        expectancy = float(expectancy) if expectancy is not None else float("nan")
+        pf = metrics.get("profit_factor")
+        valid_pf = pf == "infinite" or (
+            isinstance(pf, (int, float)) and math.isfinite(float(pf)) and float(pf) > 1
+        )
+        return (
+            trades >= min_trades
+            and math.isfinite(win_rate) and win_rate >= min_win_rate_pct
+            and math.isfinite(net_return) and net_return > 0
+            and math.isfinite(expectancy) and expectancy > 0
+            and valid_pf
+        )
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def evaluate_by_condition(condition_metrics, min_trades=100, min_win_rate_pct=80.0):
+    """Evaluate each supplied market condition independently; never pool metrics."""
+    return {
+        str(condition): qualifies_strategy(
+            metrics, min_trades=min_trades, min_win_rate_pct=min_win_rate_pct
+        )
+        for condition, metrics in condition_metrics.items()
+    }
+
+
 def compare_all(df, fee=0.001, slippage=0.0005, initial_balance=1000.0):
     results = []
     for name, (entry, exit_) in strategy_signals(df).items():
         try:
             r = run_backtest(df, entry, exit_, fee, slippage, initial_balance)
-            pf = r["profit_factor"]
-            qualifies = (
-                r["trades"] >= 100
-                and r["win_rate_pct"] >= 80
-                and r["net_return_pct"] > 0
-                and r["expectancy"] is not None and r["expectancy"] > 0
-                and (pf == "infinite" or (isinstance(pf, (int, float)) and pf > 1))
-            )
+            qualifies = qualifies_strategy(r)
             results.append({"strategy": name, **r, "qualifies": qualifies,
                             "status": "معیار اولیه را گذرانده" if qualifies else "نیازمند بررسی / رد معیار اولیه"})
         except (ValueError, KeyError, TypeError) as exc:
