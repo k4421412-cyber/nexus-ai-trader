@@ -1,4 +1,6 @@
 import os
+import json
+from datetime import datetime, timezone
 import streamlit as st
 import pandas as pd
 from nexus.market_data import fetch_ohlcv
@@ -93,14 +95,30 @@ elif page == "آزمایشگاه استراتژی":
     if st.button("🚀 اجرای مقایسه خودکار ۵ استراتژی", type="primary"):
         try:
             auto_df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 1000))
-            st.session_state["auto_strategy_reports"] = compare_strategies(auto_df, fee=fee, slippage=slippage)
-            st.session_state["auto_strategy_meta"] = (exchange.upper(), symbol.upper(), timeframe, len(auto_df))
+            reports = compare_strategies(auto_df, fee=fee, slippage=slippage)
+            st.session_state["auto_strategy_reports"] = reports
+            st.session_state["auto_strategy_meta"] = {
+                "exchange": exchange.upper(), "requested_symbol": symbol.upper(),
+                "resolved_symbol": auto_df.attrs.get("resolved_symbol", symbol.strip()),
+                "timeframe": timeframe, "candles": len(auto_df),
+                "fee_per_side_pct": fee * 100, "slippage_per_side_pct": slippage * 100,
+                "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            }
+            st.session_state["auto_strategy_report_payload"] = {
+                "project": "NEXUS AI TRADER", "report_type": "automatic_strategy_comparison",
+                "metadata": st.session_state["auto_strategy_meta"], "results": reports,
+                "notice": "Historical simulation only; not financial advice or a guarantee of future returns."
+            }
         except Exception as e:
             st.error(f"مقایسه خودکار انجام نشد: {e}")
 
     if st.session_state.get("auto_strategy_reports"):
-        meta = st.session_state.get("auto_strategy_meta", ("", "", "", 0))
-        st.caption(f"بازار: {meta[0]} | نماد: {meta[1]} | تایم‌فریم: {meta[2]} | کندل: {meta[3]}")
+        meta = st.session_state.get("auto_strategy_meta", {})
+        st.caption(
+            f"بازار: {meta.get('exchange')} | نماد درخواستی: {meta.get('requested_symbol')} | "
+            f"نماد استاندارد: {meta.get('resolved_symbol')} | تایم‌فریم: {meta.get('timeframe')} | "
+            f"کندل: {meta.get('candles')} | زمان UTC: {meta.get('generated_at_utc')}"
+        )
         rows = [{
             "استراتژی": x["strategy"],
             "بازده پس از هزینه خروج (%)": x["estimated_liquidation_return_pct"],
@@ -118,6 +136,29 @@ elif page == "آزمایشگاه استراتژی":
         else:
             st.warning("هیچ استراتژی حداقل ۱۰ معامله بسته‌شده ندارد؛ نتیجه فعلاً برای انتخاب نهایی کافی نیست.")
         st.caption("این رتبه‌بندی غربال اولیه است؛ آزمون خارج از نمونه و walk-forward هنوز لازم است.")
+        report_json = json.dumps(st.session_state["auto_strategy_report_payload"], ensure_ascii=False, indent=2, default=str)
+        st.download_button(
+            "📥 دریافت گزارش کامل برای بررسی",
+            data=report_json.encode("utf-8"),
+            file_name="nexus_strategy_report.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+        if st.button("📋 آماده‌سازی خلاصه برای ارسال در گفتگو"):
+            summary_lines = [
+                "NEXUS AI TRADER — گزارش مقایسه استراتژی‌ها",
+                f"بازار: {meta.get('exchange')} | نماد: {meta.get('resolved_symbol')} | تایم‌فریم: {meta.get('timeframe')}",
+                f"کندل‌ها: {meta.get('candles')} | زمان UTC: {meta.get('generated_at_utc')}",
+            ]
+            for item in st.session_state["auto_strategy_reports"]:
+                summary_lines.append(
+                    f"{item['strategy']}: بازده خروج {item['estimated_liquidation_return_pct']}%، "
+                    f"معاملات {item['closed_trade_count']}، برد {item['win_rate_pct']}%، "
+                    f"افت سرمایه {item['max_drawdown_pct']}%، PF {item['profit_factor']}"
+                )
+            st.code("\\n".join(summary_lines), language="text")
+            st.info("این خلاصه را کپی کن و در همین گفتگو بفرست تا نتایج را بررسی کنم.")
+
 
     if st.button("اجرای بک‌تست"):
         try:
