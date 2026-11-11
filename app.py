@@ -119,7 +119,9 @@ elif page == "آزمایشگاه استراتژی":
             st.session_state["auto_strategy_report_payload"] = {
                 "project": "NEXUS AI TRADER", "report_type": "automatic_strategy_comparison",
                 "metadata": st.session_state["auto_strategy_meta"], "results": reports,
-                "strategy_count": len(reports), "strategy_names": [item["strategy"] for item in reports],\n                "chatgpt_review_instructions": "این گزارش را مانند یک پژوهشگر کمی بررسی کن. کیفیت داده، تعداد معاملات، هزینه‌ها، نرخ برد، امید ریاضی، Profit Factor، افت سرمایه و احتمال بیش‌برازش را ارزیابی کن. فقط با شواهد موجود نتیجه بگیر؛ استراتژی کم‌نمونه را برنده اعلام نکن. برای هر روش ضعیف، ۲ تا ۳ اصلاح مشخص و قابل‌بک‌تست پیشنهاد بده و فرضیه‌ها را از نتایج اثبات‌شده جدا کن. هیچ سود آینده‌ای را تضمین نکن.",\n                "notice": "Historical simulation only; not financial advice or a guarantee of future returns."
+                "strategy_count": len(reports), "strategy_names": [item["strategy"] for item in reports],
+                "chatgpt_review_instructions": "این گزارش را مانند یک پژوهشگر کمی بررسی کن. کیفیت داده، تعداد معاملات، هزینه‌ها، نرخ برد، امید ریاضی، Profit Factor، افت سرمایه و احتمال بیش‌برازش را ارزیابی کن. فقط با شواهد موجود نتیجه بگیر؛ استراتژی کم‌نمونه را برنده اعلام نکن. برای هر روش ضعیف، ۲ تا ۳ اصلاح مشخص و قابل‌بک‌تست پیشنهاد بده و فرضیه‌ها را از نتایج اثبات‌شده جدا کن. هیچ سود آینده‌ای را تضمین نکن.",
+                "notice": "Historical simulation only; not financial advice or a guarantee of future returns."
             }
         except Exception as e:
             st.error(f"مقایسه خودکار انجام نشد: {e}")
