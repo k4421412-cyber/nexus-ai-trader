@@ -30,8 +30,8 @@ def walk_forward_evaluate(
             raise ValueError(f"{name} must be an integer of at least 2")
     if step_size is None:
         step_size = test_size
-    if isinstance(step_size, bool) or not isinstance(step_size, int) or step_size < 1:
-        raise ValueError("step_size must be a positive integer")
+    if isinstance(step_size, bool) or not isinstance(step_size, int) or step_size < test_size:
+        raise ValueError("step_size must be an integer greater than or equal to test_size to prevent overlapping OOS folds")
     if not isinstance(strategy_candidates, dict) or not strategy_candidates:
         raise ValueError("strategy_candidates must be a non-empty mapping")
 
