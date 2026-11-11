@@ -55,7 +55,7 @@ h1,h2,h3 {letter-spacing:-.35px;}
 </style>
 """, unsafe_allow_html=True)
 st.title("🚀 NEXUS AI TRADER")
-st.caption("نسخه آزمایشی 0.2 | تحلیل بازار، آزمایش استراتژی و معاملات مجازی")
+st.caption("نسخه آزمایشی 0.3 | رابط واکنش‌گرا، تحلیل بازار و معاملات مجازی")
 pages = ["داشبورد", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
