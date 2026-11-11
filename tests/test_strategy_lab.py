@@ -41,6 +41,23 @@ def test_backtest_uses_next_open_and_accounts_for_costs():
     assert costly["liquidation_balance"] < free["liquidation_balance"]
 
 
+def test_backtest_force_closes_open_position_at_final_candle():
+    market = pd.DataFrame({
+        "open": [100.0, 100.0, 100.0],
+        "close": [100.0, 100.0, 110.0],
+    })
+    result = run_backtest(
+        market, [False, True, False], [False, False, False],
+        fee=0, slippage=0, initial_balance=1000,
+    )
+    assert result["trades"] == 1
+    assert result["open_position"] is False
+    assert result["trade_log"][0]["forced_exit"] is True
+    assert result["trade_log"][0]["exit_index"] == 2
+    assert result["liquidation_balance"] == 1100
+    assert result["equity_curve"][-1] == result["liquidation_balance"]
+
+
 def test_comparison_returns_every_strategy_and_does_not_fake_qualification():
     results = compare_all(sample_market(), fee=0.001, slippage=0.0005)
     assert len(results) == 11
