@@ -63,19 +63,12 @@ def test_mobile_viewports_render_all_pages_without_horizontal_overflow(running_a
         page.goto(running_app, wait_until="domcontentloaded", timeout=30000)
         page.get_by_text("NEXUS AI TRADER").first.wait_for(timeout=20000)
 
-        # Streamlit collapses its sidebar on narrow viewports. Open it before
-        # interacting with navigation items so the test exercises real mobile UI.
-        sidebar_toggle = page.locator('[data-testid="stSidebarCollapsedControl"]')
-        if sidebar_toggle.count() and sidebar_toggle.first.is_visible():
-            sidebar_toggle.first.click(timeout=8000)
-            page.locator('[data-testid="stSidebar"]').wait_for(state="visible", timeout=8000)
-
-        sidebar = page.locator('[data-testid="stSidebar"]')
+        # The app uses a horizontal radio navigation bar (not a sidebar).
         for page_name in PAGES:
             # Target the actual accessible radio control, not its inner <p>
             # text node (which can be outside the viewport in Streamlit's
             # narrow-screen sidebar drawer).
-            nav_item = sidebar.get_by_role("radio", name=page_name)
+            nav_item = page.get_by_role("radio", name=page_name)
             nav_item.wait_for(state="visible", timeout=8000)
             # Streamlit's React-Aria radio input is visually positioned outside
             # the mobile viewport. Trigger its native click event directly;
