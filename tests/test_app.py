@@ -28,5 +28,5 @@ def test_all_navigation_pages_render_without_exceptions():
             default_timeout=15,
         )
         app.run()
-        app.sidebar.radio[0].set_value(page).run()
+        app.radio[0].set_value(page).run()
         assert not app.exception, f"Page failed to render: {page}"
