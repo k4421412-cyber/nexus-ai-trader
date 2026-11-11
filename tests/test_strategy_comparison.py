@@ -17,11 +17,21 @@ def _market_frame(size=180):
     })
 
 
-def test_strategy_signal_sets_returns_five_aligned_boolean_entry_exit_pairs():
+def test_strategy_signal_sets_returns_broad_aligned_boolean_entry_exit_pairs():
     market = add_indicators(_market_frame())
     signal_sets = strategy_signal_sets(market)
 
-    assert len(signal_sets) == 5
+    assert len(signal_sets) >= 20
+    expected_families = {
+        "EMA9/EMA21 crossover", "SMA20/SMA50 crossover",
+        "MACD zero-line momentum", "Bollinger breakout",
+        "Donchian 20-bar breakout", "RSI momentum",
+        "Stochastic reversal", "10-bar ROC momentum",
+        "ATR channel breakout", "Keltner channel reversion",
+        "ADX directional trend", "Bullish engulfing",
+        "Hammer reversal", "Volume-confirmed breakout",
+    }
+    assert expected_families.issubset(signal_sets)
     for name, pair in signal_sets.items():
         assert isinstance(name, str) and name
         assert isinstance(pair, tuple) and len(pair) == 2
@@ -38,7 +48,7 @@ def test_compare_strategies_returns_complete_ranked_reports():
     market = add_indicators(_market_frame())
     reports = compare_strategies(market, fee=0.001, slippage=0.0005)
 
-    assert len(reports) == 5
+    assert len(reports) >= 20
     returns = [report["estimated_liquidation_return_pct"] for report in reports]
     assert returns == sorted(returns, reverse=True)
 
@@ -70,3 +80,13 @@ def test_strategy_comparison_is_deterministic():
         (item["strategy"], item["estimated_liquidation_return_pct"], item["closed_trade_count"])
         for item in second
     ]
+
+
+def test_strategy_library_rejects_missing_ohlc_columns():
+    market = add_indicators(_market_frame()).drop(columns=["high"])
+    try:
+        strategy_signal_sets(market)
+    except ValueError as exc:
+        assert "high" in str(exc)
+    else:
+        raise AssertionError("Missing OHLC data should be rejected")
