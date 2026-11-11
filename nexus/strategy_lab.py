@@ -190,6 +190,96 @@ def evaluate_by_condition(condition_metrics, min_trades=100, min_win_rate_pct=80
     }
 
 
+
+def classify_market_regime(df, adx_threshold=20.0):
+    """Classify each candle using trailing-only EMA trend and ADX information."""
+    x = df.copy()
+    close = pd.to_numeric(x["close"], errors="coerce")
+    high = pd.to_numeric(x["high"], errors="coerce")
+    low = pd.to_numeric(x["low"], errors="coerce")
+    if not np.isfinite(np.column_stack([close, high, low])).all():
+        raise ValueError("OHLC data contains missing or non-finite values")
+    if (close <= 0).any() or (high <= 0).any() or (low <= 0).any():
+        raise ValueError("OHLC prices must be positive")
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    ema200 = close.ewm(span=200, adjust=False).mean()
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    previous_close = close.shift(1)
+    true_range = pd.concat([
+        high - low,
+        (high - previous_close).abs(),
+        (low - previous_close).abs(),
+    ], axis=1).max(axis=1)
+    atr = true_range.ewm(alpha=1/14, adjust=False, min_periods=14).mean()
+    plus_di = 100 * plus_dm.ewm(alpha=1/14, adjust=False, min_periods=14).mean() / atr.replace(0, np.nan)
+    minus_di = 100 * minus_dm.ewm(alpha=1/14, adjust=False, min_periods=14).mean() / atr.replace(0, np.nan)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    adx = dx.ewm(alpha=1/14, adjust=False, min_periods=14).mean()
+    slope_up = ema50 > ema50.shift(5)
+    valid = ema200.notna() & adx.notna() & plus_di.notna() & minus_di.notna()
+    bullish = valid & (adx >= adx_threshold) & (ema50 > ema200) & slope_up & (plus_di > minus_di)
+    bearish = valid & (adx >= adx_threshold) & (ema50 < ema200) & (~slope_up) & (minus_di > plus_di)
+    labels = pd.Series("sideways", index=df.index, dtype="object")
+    labels.loc[~valid] = "insufficient_data"
+    labels.loc[bullish] = "bullish"
+    labels.loc[bearish] = "bearish"
+    return labels
+
+
+def _metrics_for_trade_group(trades, initial_balance):
+    count = len(trades)
+    pnls = [float(t["net_pnl"]) for t in trades]
+    wins = [p for p in pnls if p > 0]
+    losses = [-p for p in pnls if p < 0]
+    gross_win, gross_loss = sum(wins), sum(losses)
+    profit_factor = gross_win / gross_loss if gross_loss else ("infinite" if gross_win else None)
+    equity = float(initial_balance)
+    peak = equity
+    max_drawdown = 0.0
+    for trade in trades:
+        equity *= 1 + float(trade["return_pct"]) / 100
+        peak = max(peak, equity)
+        if peak:
+            max_drawdown = max(max_drawdown, (peak - equity) / peak)
+    return {
+        "trades": count,
+        "win_rate_pct": len(wins) / count * 100 if count else 0.0,
+        "net_return_pct": (equity / initial_balance - 1) * 100 if count else 0.0,
+        "max_drawdown_pct": max_drawdown * 100,
+        "profit_factor": profit_factor,
+        "expectancy": sum(pnls) / count if count else None,
+    }
+
+
+def compare_by_regime(df, fee=0.001, slippage=0.0005, initial_balance=1000.0):
+    """Backtest every strategy, then grade its closed trades separately by entry regime."""
+    regimes = classify_market_regime(df).reset_index(drop=True)
+    output = []
+    for name, (entry, exit_) in strategy_signals(df).items():
+        try:
+            backtest = run_backtest(df, entry, exit_, fee, slippage, initial_balance)
+            grouped = {key: [] for key in ("bullish", "bearish", "sideways")}
+            for trade in backtest["trade_log"]:
+                regime = regimes.iloc[int(trade["entry_index"])]
+                if regime in grouped:
+                    grouped[regime].append(trade)
+            by_regime = {}
+            for regime, trades in grouped.items():
+                metrics = _metrics_for_trade_group(trades, initial_balance)
+                metrics["qualifies"] = qualifies_strategy(metrics)
+                metrics["status"] = (
+                    "معیار اولیه را گذرانده" if metrics["qualifies"]
+                    else "رد/داده ناکافی برای تأیید"
+                )
+                by_regime[regime] = metrics
+            output.append({"strategy": name, "by_regime": by_regime})
+        except (ValueError, KeyError, TypeError, IndexError) as exc:
+            output.append({"strategy": name, "by_regime": {}, "error": str(exc)})
+    return output
+
 def compare_all(df, fee=0.001, slippage=0.0005, initial_balance=1000.0):
     results = []
     for name, (entry, exit_) in strategy_signals(df).items():
