@@ -132,8 +132,23 @@ def run_backtest(df, entry, exit_, fee=0.001, slippage=0.0005, initial_balance=1
             cost = units * fill * (1 + fee)
             cash, entry_i = 0.0, i
         equity.append(cash + units * cl[i])
-    last = cl[-1] * (1 - slippage)
-    liquidation = cash + units * last * (1 - fee)
+    # Close any remaining position at the final candle so realized trade
+    # metrics, net return, and the reported trade count use the same basis.
+    if units > 0:
+        fill = cl[-1] * (1 - slippage)
+        proceeds = units * fill * (1 - fee)
+        pnl = proceeds - cost
+        trades.append({
+            "entry_index": entry_i,
+            "exit_index": n - 1,
+            "net_pnl": pnl,
+            "return_pct": pnl / cost * 100,
+            "forced_exit": True,
+        })
+        cash += proceeds
+        units, cost, entry_i = 0.0, 0.0, None
+    liquidation = cash
+    equity.append(liquidation)
     peak, drawdown = initial_balance, 0.0
     for value in equity:
         peak = max(peak, value)
