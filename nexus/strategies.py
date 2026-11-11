@@ -36,7 +36,7 @@ def strategy_signal_sets(df):
     required = {'close', 'high', 'low', 'ema20', 'ema50', 'rsi'}
     missing = required.difference(df.columns)
     if missing:
-        raise ValueError(f'Missing strategy columns: {', '.join(sorted(missing))}')
+        raise ValueError('Missing strategy columns: ' + ', '.join(sorted(missing)))
     close = pd.to_numeric(df['close'], errors='coerce')
     high = pd.to_numeric(df['high'], errors='coerce')
     low = pd.to_numeric(df['low'], errors='coerce')
