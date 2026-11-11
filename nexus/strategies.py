@@ -103,6 +103,11 @@ def backtest(
     closed_trades = []
     equity_curve = [initial_balance]
     exposed_bars = 0
+    # Signals are evaluated on a completed candle and executed at the next candle open.
+    entry_signal_count = int(signal_values.iloc[:-1].sum())
+    exit_condition_count = int((market["ema20"].iloc[:-1] < market["ema50"].iloc[:-1]).sum())
+    executed_entry_count = 0
+    executed_exit_count = 0
 
     for i in range(1, len(market)):
         execution_open = float(market.iloc[i]["open"])
@@ -113,6 +118,7 @@ def backtest(
             fill_price = execution_open * (1 - slippage)
             proceeds = units * fill_price * (1 - fee)
             pnl = proceeds - entry_cost
+            executed_exit_count += 1
             closed_trades.append({
                 "entry_cost": round(entry_cost, 8),
                 "exit_proceeds": round(proceeds, 8),
@@ -127,6 +133,7 @@ def backtest(
             total_cost_per_unit = fill_price * (1 + fee)
             units = cash / total_cost_per_unit
             entry_cost = units * total_cost_per_unit
+            executed_entry_count += 1
             cash = 0.0
 
         if units > 0:
@@ -161,6 +168,10 @@ def backtest(
         "estimated_liquidation_return_pct": round((estimated_liquidation_balance / initial_balance - 1) * 100, 4),
         "net_return_pct": round((marked_to_market_balance / initial_balance - 1) * 100, 4),
         "closed_trade_count": trade_count,
+        "entry_signal_count": entry_signal_count,
+        "exit_condition_count": exit_condition_count,
+        "executed_entry_count": executed_entry_count,
+        "executed_exit_count": executed_exit_count,
         "open_position": units > 0,
         "open_position_units": round(units, 10),
         "win_rate_pct": round((len(winners) / trade_count) * 100, 2) if trade_count else 0.0,
