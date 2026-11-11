@@ -85,19 +85,34 @@ elif page == "آزمایشگاه استراتژی":
     slippage = st.number_input("لغزش هر سمت (%)", 0.0, 1.0, 0.05, 0.01) / 100
     if st.button("اجرای بک‌تست"):
         try:
-            df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 500))
+            df = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, 300))
             signals = ema_rsi_signals(df)
             result = backtest(df, signals, fee, slippage)
+            resolved_symbol = df.attrs.get("resolved_symbol", symbol.strip())
             st.markdown("### نتیجه بک‌تست")
             st.caption(
-                f"بازار: {exchange.upper()} | نماد: {symbol.upper()} | "
-                f"تایم‌فریم: {timeframe} | تعداد کندل: {len(df)}"
+                f"بازار: {exchange.upper()} | نماد درخواستی: {symbol.upper()} | "
+                f"نماد استاندارد: {resolved_symbol.upper()} | "
+                f"تایم‌فریم: {timeframe} | تعداد کندل دریافت‌شده: {len(df)}"
             )
 
             m1, m2, m3 = st.columns(3)
             m1.metric("ارزش نهایی", f"{result['final_balance']:,.2f} USDT")
             m2.metric("بازده خالص", f"{result['net_return_pct']:.2f}%")
             m3.metric("تعداد معاملات بسته‌شده", result["closed_trade_count"])
+
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("سیگنال‌های ورود قابل اجرا", result["entry_signal_count"])
+            d2.metric("شرط‌های خروج مشاهده‌شده", result["exit_condition_count"])
+            d3.metric("ورودهای اجراشده", result["executed_entry_count"])
+            d4.metric("خروج‌های اجراشده", result["executed_exit_count"])
+            if result["closed_trade_count"] == 0:
+                if result["open_position"]:
+                    st.warning("سیگنال ورود اجرا شده، اما موقعیت تا پایان بازه بسته نشده است؛ نتیجه نهایی هنوز قطعی نیست.")
+                elif result["entry_signal_count"] == 0:
+                    st.warning("در این بازه هیچ سیگنال ورود قابل اجرایی تولید نشده است. این وضعیت به معنی سود یا زیان صفرِ یک استراتژیِ اثبات‌شده نیست.")
+                else:
+                    st.warning("سیگنال ورود وجود داشته، اما معامله بسته‌شده‌ای ثبت نشده است؛ جزئیات اجرای سفارش را بررسی کنید.")
 
             m4, m5, m6 = st.columns(3)
             m4.metric("نرخ برد", f"{result['win_rate_pct']:.2f}%")
