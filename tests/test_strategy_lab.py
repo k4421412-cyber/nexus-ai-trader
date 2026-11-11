@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from nexus.strategy_lab import (
-    compare_all, evaluate_by_condition, qualifies_strategy,
+    classify_market_regime, compare_all, compare_by_regime, evaluate_by_condition, qualifies_strategy,
     run_backtest, strategy_signals,
 )
 
@@ -94,3 +94,32 @@ def test_conditions_are_evaluated_separately_without_averaging():
 def test_infinite_profit_factor_is_allowed_only_with_other_gates_passed():
     assert qualifies_strategy(passing_metrics(profit_factor="infinite"))
     assert not qualifies_strategy(passing_metrics(profit_factor="infinite", trades=99))
+
+
+
+def test_regime_classifier_uses_only_current_and_past_candles():
+    market = sample_market(600)
+    full_labels = classify_market_regime(market)
+    prefix_labels = classify_market_regime(market.iloc[:350])
+    assert full_labels.iloc[:350].tolist() == prefix_labels.tolist()
+    assert set(full_labels.unique()).issubset({
+        "bullish", "bearish", "sideways", "insufficient_data"
+    })
+
+
+def test_regime_classifier_marks_warmup_as_insufficient_data():
+    labels = classify_market_regime(sample_market(250))
+    assert (labels.iloc[:200] == "insufficient_data").all()
+    assert labels.iloc[200:].isin(["bullish", "bearish", "sideways"]).all()
+
+
+def test_all_eleven_strategies_are_evaluated_separately_by_regime():
+    results = compare_by_regime(sample_market(600), fee=0.001, slippage=0.0005)
+    assert len(results) == 11
+    expected = {"bullish", "bearish", "sideways"}
+    for row in results:
+        assert set(row["by_regime"]) == expected
+        for metrics in row["by_regime"].values():
+            assert "qualifies" in metrics
+            if metrics["trades"] < 100:
+                assert metrics["qualifies"] is False
