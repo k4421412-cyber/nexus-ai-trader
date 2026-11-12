@@ -11,7 +11,7 @@ from nexus.paper import PaperWallet
 from nexus.auto_wallet import simulate_to_goal
 from nexus.strategy_knowledge import list_strategies, recommend_strategies
 from nexus.regime import detect_market_regime
-from nexus.strategy_selection import screen_regime_candidates
+from nexus.strategy_selection import validate_regime_candidates
 from nexus.knowledge import save_note, load_notes
 from nexus.social_investment import SimulatedInvestmentPool
 
@@ -212,7 +212,7 @@ elif page == "انتخاب‌گر هوشمند استراتژی":
         try:
             with st.spinner("آزمایش استراتژی‌ها فقط روی داده آموزشی و با هزینه‌ها..."):
                 screen_market = fetch_ohlcv(screen_exchange, screen_symbol, screen_timeframe, screen_candles)
-                screen_result = screen_regime_candidates(screen_market)
+                screen_result = validate_regime_candidates(screen_market)
             st.session_state["strategy_screen_result"] = screen_result
             st.session_state["strategy_screen_meta"] = {"exchange": screen_exchange, "symbol": screen_symbol, "timeframe": screen_timeframe}
         except Exception as exc:
@@ -238,7 +238,22 @@ elif page == "انتخاب‌گر هوشمند استراتژی":
                 "Profit Factor": metrics.get("profit_factor") if metrics else "—",
             })
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        st.error("هیچ نامزدی با این غربال‌گری اجازه معامله نمی‌گیرد. ابتدا باید روی بخش رزروشده و سپس در چند بازار/تایم‌فریم آزمون مستقل را بگذراند.")
+        holdout_rows = []
+        for regime, details in screen_result["holdout_validation"].items():
+            metrics = details["metrics"]
+            holdout_rows.append({
+                "وضعیت بازار": regime,
+                "نامزد": details["strategy"],
+                "معاملات بسته در آزمون": metrics["trades"],
+                "نرخ برد (%)": round(metrics["win_rate_pct"], 2),
+                "بازده خالص (%)": round(metrics["net_return_pct"], 2),
+                "Profit Factor": metrics["profit_factor"],
+                "عبور از آزمون مستقل": "بله" if details["passes_holdout"] else "خیر",
+            })
+        if holdout_rows:
+            st.markdown("### اعتبارسنجی روی بخش رزروشده")
+            st.dataframe(pd.DataFrame(holdout_rows), use_container_width=True, hide_index=True)
+        st.error("حتی عبور از آزمون این نماد و تایم‌فریم به‌تنهایی مجوز معامله نیست؛ تکرار آزمون روی نمادها و تایم‌فریم‌های دیگر و بازبینی ریسک لازم است.")
         st.caption(f"مرحله بعد: {screen_result['next_gate']}")
     else:
         st.info("برای شروع، داده تاریخی یک نماد را انتخاب و غربال‌گری را اجرا کن.")
