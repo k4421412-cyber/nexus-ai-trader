@@ -16,7 +16,7 @@ def _candidate_pair(candidate, length):
     entry = np.asarray(entry, dtype=bool)
     exit_ = np.asarray(exit_, dtype=bool)
     if entry.ndim != 1 or exit_.ndim != 1 or len(entry) != length or len(exit_) != length:
-        raise ValueError("Each candidate must contain matching one-dimensional entry/exit signals")
+        raise ValueError("Each candidate must have matching signal lengths and one-dimensional entry/exit signals")
     return entry, exit_
 
 
