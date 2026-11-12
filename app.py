@@ -9,7 +9,8 @@ from nexus.evaluation import walk_forward_evaluate
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.auto_wallet import simulate_to_goal
-from nexus.strategy_knowledge import list_strategies
+from nexus.strategy_knowledge import list_strategies, recommend_strategies
+from nexus.regime import detect_market_regime
 from nexus.knowledge import save_note, load_notes
 from nexus.social_investment import SimulatedInvestmentPool
 
@@ -406,6 +407,33 @@ elif page == "دانشنامه استراتژی‌ها":
             st.warning("این روش فعلاً در دانشنامه ثبت شده و هنوز کد اجرایی/تست معتبر در موتور NEXUS ندارد؛ اجازه معامله ندارد.")
     else:
         st.info("در این فیلتر موردی وجود ندارد.")
+    st.markdown("### تشخیص آزمایشی وضعیت بازار")
+    st.caption("این تشخیص فقط از کندل‌های بسته‌شده اخیر استفاده می‌کند و برچسب آن قطعیت یا پیش‌بینی نیست.")
+    regime_exchange = st.selectbox("منبع داده تشخیص", ["okx", "binance", "bybit"], key="regime_exchange")
+    regime_symbol = st.text_input("نماد تشخیص", "BTC/USDT", key="regime_symbol")
+    regime_timeframe = st.selectbox("تایم‌فریم تشخیص", ["15m", "1h", "4h", "1d"], index=1, key="regime_timeframe")
+    if st.button("تشخیص وضعیت و پیشنهاد روش‌ها", key="detect_regime_button"):
+        try:
+            regime_market = fetch_ohlcv(regime_exchange, regime_symbol, regime_timeframe, 100)
+            detected = detect_market_regime(regime_market)
+            st.session_state["last_detected_regime"] = detected
+            st.session_state["last_detected_market"] = f"{regime_exchange} · {regime_symbol} · {regime_timeframe}"
+        except Exception as exc:
+            st.error(f"تشخیص وضعیت بازار انجام نشد: {exc}")
+    detected = st.session_state.get("last_detected_regime")
+    if detected:
+        if detected["regime"] == "unknown":
+            st.warning("داده کافی برای تشخیص وجود ندارد؛ هیچ روشی پیشنهاد اجرایی نمی‌شود.")
+        else:
+            st.metric("وضعیت تخمینی بازار", detected["regime"])
+            st.caption(f"اعتماد heuristic: {detected['confidence']:.0%} · تغییر قیمت در پنجره: {detected['trend_strength_pct']}% · نوسان تخمینی: {detected['volatility_pct']}%")
+            candidates = recommend_strategies(detected["regime"])
+            st.write("روش‌های دارای کد سیگنال که با این وضعیت هم‌خوانی اولیه دارند:")
+            if candidates:
+                st.write("، ".join(item["name"] for item in candidates))
+            else:
+                st.info("روش اجرایی هم‌خوان در فهرست فعلی پیدا نشد؛ معامله نکن.")
+            st.caption("پیشنهاد صرفاً برای اولویت‌بندی آزمایش است؛ هیچ روش به‌خاطر این برچسب تأیید یا فعال نمی‌شود.")
     st.warning("شرایط مناسب، فرضیه اولیه برای آزمایش هستند نه قانون قطعی. هیچ استراتژی بدون بک‌تست واقع‌گرایانه و عبور از معیارهای پذیرش نباید فعال شود.")
 
 elif page == "مرکز یادگیری":
