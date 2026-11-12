@@ -125,7 +125,7 @@ def validate_regime_candidates(
     for regime, strategy_name in screening["selected_candidates_by_regime"].items():
         entry, exit_ = all_signals[strategy_name]
         result = run_backtest(
-            holdout, entry[offset:], exit_[offset:], fee=fee,
+            holdout, entry.iloc[offset:].to_numpy(dtype=bool), exit_.iloc[offset:].to_numpy(dtype=bool), fee=fee,
             slippage=slippage, initial_balance=initial_balance,
         )
         grouped = []
