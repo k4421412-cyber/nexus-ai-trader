@@ -60,3 +60,24 @@ def test_holdout_validation_is_separate_and_never_grants_global_execution_permis
         assert details["metrics"]["trades"] >= 0
         assert details["passes_holdout"] is False or details["strategy"] == result["selected_candidates_by_regime"][regime]
     assert result["next_gate"] == "replication across additional symbols/timeframes and risk review"
+
+def test_cross_market_replication_requires_same_strategy_in_each_dataset(monkeypatch):
+    from nexus import strategy_selection
+
+    results = {
+        "market-a": {"validated_candidates_by_regime": {"bullish": "EMA 9/21", "bearish": "MACD"}},
+        "market-b": {"validated_candidates_by_regime": {"bullish": "EMA 9/21", "bearish": "RSI"}},
+    }
+    monkeypatch.setattr(strategy_selection, "validate_regime_candidates", lambda frame, **kwargs: results[frame])
+    result = strategy_selection.validate_across_markets({"market-a": "market-a", "market-b": "market-b"})
+    assert result["market_count"] == 2
+    assert result["replicated_candidates_by_regime"]["bullish"] == ["EMA 9/21"]
+    assert result["replicated_candidates_by_regime"]["bearish"] == []
+    assert result["execution_approved"] is False
+
+
+def test_cross_market_replication_requires_at_least_two_datasets():
+    from nexus.strategy_selection import validate_across_markets
+
+    with pytest.raises(ValueError, match="two"):
+        validate_across_markets({"BTC/USDT": sample_market()})
