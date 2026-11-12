@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nexus.strategy_selection import screen_regime_candidates
+from nexus.strategy_selection import screen_regime_candidates, validate_regime_candidates
 
 
 def sample_market(n=600):
@@ -47,3 +47,16 @@ def test_holdout_changes_cannot_change_training_selection():
     altered = screen_regime_candidates(changed)
     assert baseline["selected_candidates_by_regime"] == altered["selected_candidates_by_regime"]
     assert baseline["by_regime"] == altered["by_regime"]
+
+def test_holdout_validation_is_separate_and_never_grants_global_execution_permission():
+    from nexus.strategy_selection import validate_regime_candidates
+
+    result = validate_regime_candidates(sample_market())
+    assert result["screening_only"] is True
+    assert result["execution_approved"] is False
+    assert result["holdout_validation"].keys() <= result["selected_candidates_by_regime"].keys()
+    assert result["validated_candidates_by_regime"].keys() <= result["holdout_validation"].keys()
+    for regime, details in result["holdout_validation"].items():
+        assert details["metrics"]["trades"] >= 0
+        assert details["passes_holdout"] is False or details["strategy"] == result["selected_candidates_by_regime"][regime]
+    assert result["next_gate"] == "replication across additional symbols/timeframes and risk review"
