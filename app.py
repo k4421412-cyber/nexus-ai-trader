@@ -264,6 +264,23 @@ elif page == "آزمایشگاه استراتژی":
                          "Profit Factor": pf_text, "وضعیت": "قبول اولیه" if r.get("qualifies") else "تأییدنشده"})
         st.markdown("### جدول رتبه‌بندی")
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.markdown("### ارزیابی جداگانه بر اساس وضعیت بازار")
+        regime_rows = st.session_state.get("strategy_lab_regime_results", [])
+        regime_table = []
+        for item in regime_rows:
+            for regime_name, metrics in item.get("by_regime", {}).items():
+                regime_table.append({
+                    "استراتژی": item["strategy"],
+                    "وضعیت بازار": regime_name,
+                    "معاملات بسته": metrics.get("trades", 0),
+                    "نرخ برد (%)": round(metrics.get("win_rate_pct", 0), 2),
+                    "بازده خالص (%)": round(metrics.get("net_return_pct", 0), 2),
+                    "Profit Factor": metrics.get("profit_factor"),
+                    "وضعیت": "قبول اولیه" if metrics.get("qualifies") else "رد / داده ناکافی",
+                })
+        if regime_table:
+            st.dataframe(pd.DataFrame(regime_table), use_container_width=True, hide_index=True)
+        st.caption("ارزیابی هر وضعیت بازار مستقل است؛ نتایج کم‌نمونه یا کمتر از ۱۰۰ معامله بسته، تأیید محسوب نمی‌شوند.")
         names = [r["strategy"] for r in results]
         selected_name = st.selectbox("جزئیات کدام استراتژی؟", names, key="strategy_lab_detail")
         selected = next(r for r in results if r["strategy"] == selected_name)
