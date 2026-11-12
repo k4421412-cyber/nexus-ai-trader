@@ -27,6 +27,17 @@ def test_strategy_library_has_eleven_boolean_signal_pairs():
         assert exit_.dtype == bool
 
 
+def test_backtest_rejects_non_binary_and_non_finite_signals():
+    market = pd.DataFrame({"open": [100.0, 101.0, 102.0], "close": [100.0, 101.0, 102.0]})
+    for bad in (["False", False, True], [0, np.nan, 1], [0, 2, 1], np.zeros((3, 1))):
+        try:
+            run_backtest(market, bad, [False, False, False], fee=0, slippage=0)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Invalid signal values or shape were accepted")
+
+
 def test_backtest_uses_next_open_and_accounts_for_costs():
     market = pd.DataFrame({
         "open": [100.0, 100.0, 100.0, 110.0],
