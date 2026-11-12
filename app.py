@@ -142,7 +142,7 @@ elif page == "آزمایشگاه استراتژی":
     exchange = st.selectbox("صرافی داده بازار", ["okx", "binance", "bybit"], key="auto_bt_ex")
     symbol = st.text_input("نماد معاملاتی", "BTC/USDT", key="auto_bt_symbol")
     timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_bt_tf")
-    candle_limit = st.slider("تعداد کندل تاریخی", 300, 1500, 1000, 100, key="auto_bt_limit")
+    candle_limit = st.slider("تعداد کندل تاریخی", 300, 1000, 1000, 100, key="auto_bt_limit")
     col1, col2 = st.columns(2)
     fee = col1.number_input("کارمزد هر سمت (%)", 0.0, 1.0, 0.1, 0.01, key="auto_bt_fee") / 100
     slippage = col2.number_input("لغزش هر سمت (%)", 0.0, 1.0, 0.05, 0.01, key="auto_bt_slip") / 100
