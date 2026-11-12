@@ -8,6 +8,7 @@ from nexus.strategy_lab import compare_all, compare_by_regime, strategy_signals
 from nexus.evaluation import walk_forward_evaluate
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
+from nexus.auto_wallet import simulate_to_goal
 from nexus.knowledge import save_note, load_notes
 from nexus.social_investment import SimulatedInvestmentPool
 
@@ -63,7 +64,7 @@ st.markdown("""
   <div class="nexus-sub">نسخه آزمایشی 0.3 · تحلیل بازار و معاملات مجازی</div>
 </div>
 """, unsafe_allow_html=True)
-pages = ["داشبورد", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
+pages = ["داشبورد", "کیف پول خودکار (آزمایشی)", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
 
@@ -118,6 +119,83 @@ if page == "داشبورد":
         ("⚡ مرکز سیگنال‌ها", "بررسی سیگنال‌های آموزشی"),
     ]:
         st.markdown('<div class="nexus-panel"><b>' + title + '</b><div class="nexus-muted">' + description + '</div></div>', unsafe_allow_html=True)
+
+elif page == "کیف پول خودکار (آزمایشی)":
+    st.subheader("کیف پول اختصاصی و معامله خودکار — فقط شبیه‌سازی")
+    st.warning(
+        "این بخش در حال حاضر فقط با موجودی مجازی و بازپخش کندل‌های تاریخی کار می‌کند. "
+        "هیچ کیف پول واقعی، API صرافی، واریز/برداشت یا سفارش زنده‌ای متصل نیست."
+    )
+    st.markdown("### تنظیم هدف و محافظت از سرمایه")
+    c1, c2 = st.columns(2)
+    initial_balance = c1.number_input("سرمایه شروع مجازی (USDT)", min_value=0.01, value=1.0, step=0.1, key="auto_wallet_initial")
+    target_balance = c2.number_input("هدف موجودی (USDT)", min_value=0.02, value=5.0, step=0.5, key="auto_wallet_target")
+    c3, c4 = st.columns(2)
+    max_loss_pct = c3.number_input("حد توقف زیان (%)", min_value=1.0, max_value=50.0, value=20.0, step=1.0, key="auto_wallet_loss")
+    max_position_pct = c4.number_input("حداکثر سهم هر موقعیت از حساب (%)", min_value=1.0, max_value=100.0, value=25.0, step=5.0, key="auto_wallet_position")
+    c5, c6 = st.columns(2)
+    fee_pct = c5.number_input("کارمزد هر سمت (%)", min_value=0.0, max_value=5.0, value=0.1, step=0.01, key="auto_wallet_fee")
+    slippage_pct = c6.number_input("لغزش هر سمت (%)", min_value=0.0, max_value=5.0, value=0.05, step=0.01, key="auto_wallet_slippage")
+    st.markdown("### انتخاب بازار برای بازپخش آزمایشی")
+    c7, c8, c9 = st.columns(3)
+    exchange = c7.selectbox("منبع داده عمومی", ["okx", "binance", "bybit"], key="auto_wallet_exchange")
+    symbol = c8.text_input("نماد", "BTC/USDT", key="auto_wallet_symbol")
+    timeframe = c9.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_wallet_timeframe")
+    candle_limit = st.slider("تعداد کندل بسته‌شده", 100, 1000, 1000, 100, key="auto_wallet_candles")
+    if st.button("اجرای شبیه‌سازی تا هدف یا حد زیان", type="primary", use_container_width=True):
+        try:
+            with st.spinner("دریافت داده‌های عمومی و اجرای بازپخش معاملات مجازی..."):
+                market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
+                result = simulate_to_goal(
+                    market,
+                    initial_balance=initial_balance,
+                    target_balance=target_balance,
+                    max_loss_pct=max_loss_pct,
+                    max_position_pct=max_position_pct,
+                    fee_pct=fee_pct,
+                    slippage_pct=slippage_pct,
+                )
+            st.session_state["auto_wallet_result"] = result
+            st.session_state["auto_wallet_meta"] = {
+                "exchange": exchange, "symbol": symbol, "timeframe": timeframe,
+                "candles": len(market),
+            }
+        except Exception as exc:
+            st.error(f"اجرای شبیه‌سازی ناموفق بود: {exc}")
+    result = st.session_state.get("auto_wallet_result")
+    if result:
+        meta = st.session_state.get("auto_wallet_meta", {})
+        st.markdown("### نتیجه آخرین اجرا")
+        if result["status"] == "target_reached":
+            st.success("هدف موجودی در شبیه‌سازی لمس و پس از هزینه خروج نیز حفظ شد.")
+        elif result["status"] == "target_touched_before_exit_costs":
+            st.warning("ارزش لحظه‌ای به هدف رسید، اما پس از هزینه خروج موجودی نهایی کمتر از هدف شد.")
+        elif result["status"] == "risk_limit_reached":
+            st.error("حد توقف زیان فعال شد و شبیه‌سازی متوقف شد.")
+        else:
+            st.info("داده‌های تاریخی تمام شد؛ این نتیجه به معنی رسیدن به هدف نیست.")
+        a, b, c, d = st.columns(4)
+        a.metric("موجودی نهایی مجازی", f'{result["final_balance"]:.4f} USDT')
+        b.metric("هدف", f'{result["target_balance"]:.4f} USDT')
+        c.metric("سود/زیان خالص", f'{result["net_pnl"]:+.4f} USDT')
+        d.metric("تعداد معاملات", result["trades"])
+        st.caption(f'بازار: {meta.get("exchange")} · {meta.get("symbol")} · {meta.get("timeframe")} · {meta.get("candles")} کندل بسته‌شده')
+        curve = pd.DataFrame({
+            "شماره کندل": range(len(result["equity_curve"])),
+            "ارزش حساب مجازی (USDT)": result["equity_curve"],
+        }).set_index("شماره کندل")
+        st.line_chart(curve, use_container_width=True)
+        if result["trade_log"]:
+            st.dataframe(pd.DataFrame(result["trade_log"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("در این بازه هیچ معامله‌ای با شرط استراتژی انجام نشد.")
+        st.caption(
+            "این نسخه فقط بازپخش تاریخی با استراتژی EMA/RSI است؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
+            "حداقل سفارش صرافی، نقدشوندگی و کارمزد واقعی ممکن است باعث شود سرمایه ۱ دلاری قابل معامله نباشد. "
+            "اتصال API با مجوز فقط معامله و بدون برداشت، مرحله‌ای جداگانه و نیازمند تأیید صریح خواهد بود."
+        )
+    else:
+        st.info("سرمایه و هدف را تنظیم کن و اجرای شبیه‌سازی را بزن. مقدار پیش‌فرض ۱ دلار تا هدف ۵ دلار است.")
 
 elif page == "تحلیل بازار":
     st.subheader("تحلیل بازار")
