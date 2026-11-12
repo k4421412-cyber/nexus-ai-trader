@@ -11,7 +11,7 @@ from nexus.paper import PaperWallet
 from nexus.auto_wallet import simulate_to_goal
 from nexus.strategy_knowledge import list_strategies, recommend_strategies
 from nexus.regime import detect_market_regime
-from nexus.strategy_selection import validate_regime_candidates
+from nexus.strategy_selection import validate_regime_candidates, validate_across_markets
 from nexus.knowledge import save_note, load_notes
 from nexus.social_investment import SimulatedInvestmentPool
 
@@ -257,6 +257,33 @@ elif page == "انتخاب‌گر هوشمند استراتژی":
         st.caption(f"مرحله بعد: {screen_result['next_gate']}")
     else:
         st.info("برای شروع، داده تاریخی یک نماد را انتخاب و غربال‌گری را اجرا کن.")
+    st.markdown("### تکرار اعتبارسنجی روی چند نماد")
+    st.caption("یک استراتژی باید روی همه مجموعه‌داده‌های انتخاب‌شده در هر وضعیت بازار، مستقل از هم، از معیارها عبور کند.")
+    screen_symbols = st.text_input("نمادها با ویرگول جدا شوند", "BTC/USDT, ETH/USDT", key="screen_symbols")
+    if st.button("اعتبارسنجی مشترک نمادها", key="run_cross_market_screen"):
+        try:
+            symbols = list(dict.fromkeys(item.strip() for item in screen_symbols.split(",") if item.strip()))
+            if len(symbols) < 2:
+                raise ValueError("حداقل دو نماد متفاوت وارد کن.")
+            with st.spinner("دریافت داده و اعتبارسنجی جداگانه هر نماد..."):
+                market_sets = {
+                    f"{screen_exchange}:{symbol}:{screen_timeframe}": fetch_ohlcv(screen_exchange, symbol, screen_timeframe, screen_candles)
+                    for symbol in symbols
+                }
+                cross_result = validate_across_markets(market_sets)
+            st.session_state["strategy_cross_result"] = cross_result
+        except Exception as exc:
+            st.error(f"اعتبارسنجی چندنمادی ناموفق بود: {exc}")
+    cross_result = st.session_state.get("strategy_cross_result")
+    if cross_result:
+        st.metric("مجموعه‌داده‌های ارزیابی‌شده", cross_result["market_count"])
+        cross_rows = [
+            {"وضعیت بازار": regime, "استراتژی‌های مشترکِ عبورکرده": "، ".join(names) if names else "هیچ‌کدام"}
+            for regime, names in cross_result["replicated_candidates_by_regime"].items()
+        ]
+        st.dataframe(pd.DataFrame(cross_rows), use_container_width=True, hide_index=True)
+        st.warning("این تکرار چندنمادی نیز به‌تنهایی مجوز معامله نیست؛ آزمون چندصرافی/چندتایم‌فریم، بازبینی ریسک و تأیید جداگانه لازم است.")
+        st.caption(f"مرحله بعد: {cross_result['next_gate']}")
 
 elif page == "تحلیل بازار":
     st.subheader("تحلیل بازار")
