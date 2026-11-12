@@ -172,6 +172,12 @@ def test_market_data_rejects_invalid_ohlcv(monkeypatch, rows):
         def __init__(self, config):
             self.config = config
 
+        def parse_timeframe(self, timeframe):
+            return 3600
+
+        def milliseconds(self):
+            return 100_000
+
         def fetch_ohlcv(self, symbol, timeframe, limit):
             return rows
 
@@ -191,6 +197,12 @@ def test_market_data_accepts_valid_ohlcv(monkeypatch):
     class FakeExchange:
         def __init__(self, config):
             self.config = config
+
+        def parse_timeframe(self, timeframe):
+            return 3600
+
+        def milliseconds(self):
+            return 100_000
 
         def fetch_ohlcv(self, symbol, timeframe, limit):
             return rows
