@@ -3,7 +3,7 @@ from collections import Counter
 
 import numpy as np
 
-from nexus.strategy_lab import run_backtest
+from nexus.strategy_lab import run_backtest, _validated_signal_array
 
 
 def _candidate_pair(candidate, length):
@@ -13,10 +13,8 @@ def _candidate_pair(candidate, length):
     else:
         # Backward-compatible entry-only candidates are held until the fold ends.
         entry, exit_ = candidate, np.zeros(length, dtype=bool)
-    entry = np.asarray(entry, dtype=bool)
-    exit_ = np.asarray(exit_, dtype=bool)
-    if entry.ndim != 1 or exit_.ndim != 1 or len(entry) != length or len(exit_) != length:
-        raise ValueError("Each candidate must have matching signal lengths and one-dimensional entry/exit signals")
+    entry = _validated_signal_array(entry, length, "Entry")
+    exit_ = _validated_signal_array(exit_, length, "Exit")
     return entry, exit_
 
 
