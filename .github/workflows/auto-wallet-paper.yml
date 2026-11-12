@@ -22,5 +22,9 @@ jobs:
           python -m playwright install chromium --only-shell
       - name: Compile application
         run: python -m compileall -q app.py nexus
+      - name: Static security scan
+        run: bandit -q -r app.py nexus
+      - name: Dependency vulnerability audit
+        run: pip-audit -r requirements.txt
       - name: Run full test suite
         run: python -m pytest -q
