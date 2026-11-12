@@ -38,3 +38,12 @@ def test_screening_rejects_short_history_and_bad_parameters():
         screen_regime_candidates(sample_market(), train_fraction=1.0)
     with pytest.raises(ValueError, match="min_trades"):
         screen_regime_candidates(sample_market(), min_trades=0)
+
+def test_holdout_changes_cannot_change_training_selection():
+    market = sample_market()
+    baseline = screen_regime_candidates(market)
+    changed = market.copy()
+    changed.loc[420:, ["open", "high", "low", "close"]] *= 3
+    altered = screen_regime_candidates(changed)
+    assert baseline["selected_candidates_by_regime"] == altered["selected_candidates_by_regime"]
+    assert baseline["by_regime"] == altered["by_regime"]
