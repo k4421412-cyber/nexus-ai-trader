@@ -3,7 +3,10 @@ import math
 
 import pandas as pd
 
-from nexus.strategy_lab import compare_by_regime, qualifies_strategy
+from nexus.strategy_lab import (
+    classify_market_regime, compare_by_regime, qualifies_strategy,
+    run_backtest, strategy_signals,
+)
 
 
 def screen_regime_candidates(
@@ -77,4 +80,75 @@ def screen_regime_candidates(
         "by_regime": screening,
         "all_strategy_metrics": rows,
         "next_gate": "untouched out-of-sample validation and risk review",
+    }
+
+def validate_regime_candidates(
+    market, *, train_fraction=0.7, min_trades=100, min_win_rate_pct=80.0,
+    fee=0.001, slippage=0.0005, initial_balance=1000.0,
+):
+    """Validate the best training-screened candidate on the untouched holdout.
+
+    A passing result is scoped to this exact market history, symbol and timeframe;
+    it is not a global or future-profit guarantee.
+    """
+    screening = screen_regime_candidates(
+        market, train_fraction=train_fraction, min_trades=min_trades,
+        min_win_rate_pct=min_win_rate_pct, fee=fee, slippage=slippage,
+        initial_balance=initial_balance,
+    )
+    train_end = screening["training_candles"]
+    offset = train_end - 1
+    holdout = market.iloc[offset:].reset_index(drop=True)
+    labels = classify_market_regime(market).reset_index(drop=True)
+    all_signals = strategy_signals(market)
+    validation = {}
+    approved = {}
+
+    def trade_metrics(trades):
+        count = len(trades)
+        pnls = [float(trade["net_pnl"]) for trade in trades]
+        wins = [value for value in pnls if value > 0]
+        losses = [-value for value in pnls if value < 0]
+        gross_profit, gross_loss = sum(wins), sum(losses)
+        factor = gross_profit / gross_loss if gross_loss else ("infinite" if gross_profit else None)
+        balance = float(initial_balance)
+        for trade in trades:
+            balance *= 1 + float(trade["return_pct"]) / 100
+        return {
+            "trades": count,
+            "win_rate_pct": len(wins) / count * 100 if count else 0.0,
+            "net_return_pct": (balance / float(initial_balance) - 1) * 100 if count else 0.0,
+            "expectancy": sum(pnls) / count if count else None,
+            "profit_factor": factor,
+        }
+
+    for regime, strategy_name in screening["selected_candidates_by_regime"].items():
+        entry, exit_ = all_signals[strategy_name]
+        result = run_backtest(
+            holdout, entry[offset:], exit_[offset:], fee=fee,
+            slippage=slippage, initial_balance=initial_balance,
+        )
+        grouped = []
+        for trade in result["trade_log"]:
+            signal_index = offset + max(0, int(trade["entry_index"]) - 1)
+            if labels.iloc[signal_index] == regime:
+                grouped.append(trade)
+        metrics = trade_metrics(grouped)
+        passed = qualifies_strategy(
+            metrics, min_trades=min_trades, min_win_rate_pct=min_win_rate_pct
+        )
+        validation[regime] = {
+            "strategy": strategy_name,
+            "metrics": metrics,
+            "passes_holdout": passed,
+        }
+        if passed:
+            approved[regime] = strategy_name
+
+    return {
+        **screening,
+        "holdout_validation": validation,
+        "validated_candidates_by_regime": approved,
+        "execution_approved": False,
+        "next_gate": "replication across additional symbols/timeframes and risk review",
     }
