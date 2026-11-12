@@ -2,7 +2,11 @@ import json
 import os
 from pathlib import Path
 
+from filelock import FileLock
+
+
 DB = Path("data/knowledge.json")
+
 
 def load_notes():
     if not DB.exists():
@@ -20,6 +24,7 @@ def load_notes():
         and isinstance(note.get("body"), str)
     ]
 
+
 def save_note(title, body):
     if not isinstance(title, str) or not title.strip():
         raise ValueError("Note title must be a non-empty string")
@@ -27,13 +32,21 @@ def save_note(title, body):
         raise ValueError("Note body must be a non-empty string")
     if len(title) > 200 or len(body) > 20000:
         raise ValueError("Note title or body exceeds the allowed length")
+
     DB.parent.mkdir(parents=True, exist_ok=True)
-    notes = load_notes()
-    notes.append({"title": title.strip(), "body": body.strip()})
-    temporary = DB.with_name(DB.name + ".tmp")
-    try:
-        temporary.write_text(json.dumps(notes, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(temporary, DB)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
+    # Serialize the full read-modify-write cycle so concurrent Streamlit
+    # sessions cannot silently overwrite notes saved by another session.
+    lock = FileLock(str(DB) + ".lock")
+    with lock:
+        notes = load_notes()
+        notes.append({"title": title.strip(), "body": body.strip()})
+        temporary = DB.with_name(DB.name + ".tmp")
+        try:
+            with temporary.open("w", encoding="utf-8") as stream:
+                json.dump(notes, stream, ensure_ascii=False, indent=2)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, DB)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
