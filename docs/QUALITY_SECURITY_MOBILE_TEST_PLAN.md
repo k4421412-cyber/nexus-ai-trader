@@ -37,7 +37,7 @@ Test at 320px, 375px, 390px and 430px viewport widths on Android Chrome and iOS 
 - metric labels and long symbols wrap without clipping;
 - primary controls are at least 44px high;
 - Persian RTL and mixed Latin ticker/address text remain legible;
-- all nine pages render without exceptions.
+- all twelve pages render without exceptions, including the strategy knowledge and regime-specific selection/holdout validation pages.
 
 Streamlit AppTest and Playwright browser-viewport checks run in CI; physical-device acceptance on Android Chrome and iOS Safari remains a manual release check.
 
