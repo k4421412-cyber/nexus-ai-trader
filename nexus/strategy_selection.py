@@ -152,3 +152,38 @@ def validate_regime_candidates(
         "execution_approved": False,
         "next_gate": "replication across additional symbols/timeframes and risk review",
     }
+
+def validate_across_markets(
+    markets, *, train_fraction=0.7, min_trades=100, min_win_rate_pct=80.0,
+    fee=0.001, slippage=0.0005, initial_balance=1000.0,
+):
+    """Require the same regime candidate to pass on every supplied market.
+
+    This is a conservative replication check, not live-trading permission.
+    Keys should identify distinct symbol/timeframe/exchange datasets.
+    """
+    if not isinstance(markets, dict) or len(markets) < 2:
+        raise ValueError("At least two separately identified market datasets are required")
+    if any(not isinstance(key, str) or not key.strip() for key in markets):
+        raise ValueError("Every market dataset needs a non-empty identifier")
+    results = {}
+    for market_id, frame in markets.items():
+        results[market_id] = validate_regime_candidates(
+            frame, train_fraction=train_fraction, min_trades=min_trades,
+            min_win_rate_pct=min_win_rate_pct, fee=fee, slippage=slippage,
+            initial_balance=initial_balance,
+        )
+    replicated = {}
+    for regime in ("bullish", "bearish", "sideways"):
+        shared = None
+        for result in results.values():
+            names = set(result["validated_candidates_by_regime"].get(regime, []))
+            shared = names if shared is None else shared.intersection(names)
+        replicated[regime] = sorted(shared or [])
+    return {
+        "market_count": len(results),
+        "market_results": results,
+        "replicated_candidates_by_regime": replicated,
+        "execution_approved": False,
+        "next_gate": "broader exchange/timeframe replication, operational risk review and explicit live approval",
+    }
