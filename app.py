@@ -11,6 +11,7 @@ from nexus.paper import PaperWallet
 from nexus.auto_wallet import simulate_to_goal
 from nexus.strategy_knowledge import list_strategies, recommend_strategies
 from nexus.regime import detect_market_regime
+from nexus.strategy_selection import screen_regime_candidates
 from nexus.knowledge import save_note, load_notes
 from nexus.social_investment import SimulatedInvestmentPool
 
@@ -66,7 +67,7 @@ st.markdown("""
   <div class="nexus-sub">نسخه آزمایشی 0.3 · تحلیل بازار و معاملات مجازی</div>
 </div>
 """, unsafe_allow_html=True)
-pages = ["داشبورد", "کیف پول خودکار (آزمایشی)", "دانشنامه استراتژی‌ها", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
+pages = ["داشبورد", "کیف پول خودکار (آزمایشی)", "دانشنامه استراتژی‌ها", "انتخاب‌گر هوشمند استراتژی", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
 
@@ -198,6 +199,49 @@ elif page == "کیف پول خودکار (آزمایشی)":
         )
     else:
         st.info("سرمایه و هدف را تنظیم کن و اجرای شبیه‌سازی را بزن. مقدار پیش‌فرض ۱ دلار تا هدف ۵ دلار است.")
+
+elif page == "انتخاب‌گر هوشمند استراتژی":
+    st.subheader("انتخاب‌گر استراتژی بر اساس وضعیت بازار")
+    st.warning("این مرحله فقط غربال‌گری روی بخش آموزشی داده است؛ هیچ استراتژی در این صفحه مجاز به معامله نیست. بخش انتهایی داده برای آزمون مستقل کنار گذاشته می‌شود.")
+    c1, c2, c3 = st.columns(3)
+    screen_exchange = c1.selectbox("منبع داده", ["okx", "binance", "bybit"], key="screen_exchange")
+    screen_symbol = c2.text_input("نماد", "BTC/USDT", key="screen_symbol")
+    screen_timeframe = c3.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="screen_timeframe")
+    screen_candles = st.slider("تعداد کندل تاریخی", 300, 1000, 1000, 100, key="screen_candles")
+    if st.button("غربال‌گری استراتژی‌ها", key="run_strategy_screen", type="primary"):
+        try:
+            with st.spinner("آزمایش استراتژی‌ها فقط روی داده آموزشی و با هزینه‌ها..."):
+                screen_market = fetch_ohlcv(screen_exchange, screen_symbol, screen_timeframe, screen_candles)
+                screen_result = screen_regime_candidates(screen_market)
+            st.session_state["strategy_screen_result"] = screen_result
+            st.session_state["strategy_screen_meta"] = {"exchange": screen_exchange, "symbol": screen_symbol, "timeframe": screen_timeframe}
+        except Exception as exc:
+            st.error(f"غربال‌گری ناموفق بود: {exc}")
+    screen_result = st.session_state.get("strategy_screen_result")
+    if screen_result:
+        meta = st.session_state.get("strategy_screen_meta", {})
+        st.caption(f"بازار: {meta.get('exchange')} · {meta.get('symbol')} · {meta.get('timeframe')}")
+        a, b, d = st.columns(3)
+        a.metric("کندل آموزشی", screen_result["training_candles"])
+        b.metric("کندل رزروشده برای آزمون", screen_result["holdout_candles_reserved"])
+        d.metric("حداقل معاملات بسته", screen_result["minimum_closed_trades"])
+        rows = []
+        for regime, details in screen_result["by_regime"].items():
+            metrics = details["candidate_metrics"]
+            rows.append({
+                "وضعیت بازار": regime,
+                "بهترین نامزد": details["best_candidate"] or "هیچ‌کدام",
+                "نامزدهای واجد معیار": details["candidate_count"],
+                "معاملات بسته": metrics.get("trades", 0) if metrics else 0,
+                "نرخ برد (%)": round(metrics.get("win_rate_pct", 0), 2) if metrics else 0,
+                "بازده خالص (%)": round(metrics.get("net_return_pct", 0), 2) if metrics else 0,
+                "Profit Factor": metrics.get("profit_factor") if metrics else "—",
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.error("هیچ نامزدی با این غربال‌گری اجازه معامله نمی‌گیرد. ابتدا باید روی بخش رزروشده و سپس در چند بازار/تایم‌فریم آزمون مستقل را بگذراند.")
+        st.caption(f"مرحله بعد: {screen_result['next_gate']}")
+    else:
+        st.info("برای شروع، داده تاریخی یک نماد را انتخاب و غربال‌گری را اجرا کن.")
 
 elif page == "تحلیل بازار":
     st.subheader("تحلیل بازار")
