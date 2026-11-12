@@ -112,3 +112,19 @@ def test_walk_forward_rejects_mismatched_paired_signal_lengths():
             train_size=6,
             test_size=3,
         )
+
+
+def test_walk_forward_rejects_non_boolean_signal_values():
+    market = market_data()
+    with pytest.raises(ValueError, match="only booleans"):
+        walk_forward_evaluate(
+            market, {"bad": ["False"] * len(market)}, train_size=6, test_size=3
+        )
+
+
+def test_walk_forward_rejects_non_finite_numeric_signal_values():
+    market = market_data()
+    bad = np.zeros(len(market), dtype=float)
+    bad[2] = np.nan
+    with pytest.raises(ValueError, match="only booleans"):
+        walk_forward_evaluate(market, {"bad": bad}, train_size=6, test_size=3)
