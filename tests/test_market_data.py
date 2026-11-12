@@ -50,7 +50,7 @@ def test_fetch_ohlcv_rejects_future_candle_timestamp(monkeypatch):
     class FutureExchange(FakeExchange):
         def fetch_ohlcv(self, symbol, timeframe, limit):
             rows = super().fetch_ohlcv(symbol, timeframe, limit)
-            rows[0][0] = 300_000
+            rows[-1][0] = 300_000
             return rows
 
     monkeypatch.setattr(market_data.ccxt, "binance", FutureExchange)
