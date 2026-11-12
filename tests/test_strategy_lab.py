@@ -152,7 +152,7 @@ def test_forced_exit_deducts_final_fee_and_slippage_from_realized_metrics():
         market, [False, True, False], [False, False, False],
         fee=0.01, slippage=0.01, initial_balance=1000,
     )
-    expected_units = 1000 / (100 * 1.01)
+    expected_units = 1000 / (100 * 1.01 * 1.01)
     expected_balance = expected_units * 110 * 0.99 * 0.99
     assert result["trades"] == 1
     assert result["trade_log"][0]["forced_exit"] is True
