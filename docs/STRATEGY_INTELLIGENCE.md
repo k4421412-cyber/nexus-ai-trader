@@ -41,3 +41,8 @@ Regime labels are probabilistic context, not certainty. Crypto markets can chang
 ## Important limitation
 
 The catalogue describes common families and practical heuristics. It does not promise profitability, and “best conditions” are starting hypotheses to test—not universal truths. A strategy can behave differently across assets, exchanges, fees, timeframes and market eras.
+
+
+## Regime-specific candidate screening
+
+`nexus.strategy_selection.screen_regime_candidates` screens the 11 currently implemented signal strategies on the first 70% of a chronological history by default. It keeps the final 30% untouched as a holdout and applies the hard gate separately for bullish, bearish and sideways regimes: at least 100 closed trades, at least 80% winners, positive net return, positive expectancy and Profit Factor above 1 (or infinite with no losing trades). It reports only research candidates and explicitly sets `execution_approved=false`. The holdout and additional assets/timeframes must be evaluated independently before any method is considered for paper-wallet integration. This screening is not a proof of future performance.
