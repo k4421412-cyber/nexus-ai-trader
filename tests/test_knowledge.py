@@ -22,3 +22,21 @@ def test_save_notes_rejects_invalid_or_oversized_input(tmp_path, monkeypatch, ti
     with pytest.raises(ValueError):
         knowledge.save_note(title, body)
     assert not knowledge.DB.exists()
+
+
+def test_concurrent_saves_do_not_lose_notes(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setattr(knowledge, "DB", tmp_path / "data" / "knowledge.json")
+    count = 24
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(
+            lambda index: knowledge.save_note(f"title-{index}", f"body-{index}"),
+            range(count),
+        ))
+
+    notes = knowledge.load_notes()
+    assert len(notes) == count
+    assert {note["title"] for note in notes} == {
+        f"title-{index}" for index in range(count)
+    }
