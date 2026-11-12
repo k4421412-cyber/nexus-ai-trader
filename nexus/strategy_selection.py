@@ -177,7 +177,8 @@ def validate_across_markets(
     for regime in ("bullish", "bearish", "sideways"):
         shared = None
         for result in results.values():
-            names = set(result["validated_candidates_by_regime"].get(regime, []))
+            candidate = result["validated_candidates_by_regime"].get(regime)
+            names = {candidate} if candidate else set()
             shared = names if shared is None else shared.intersection(names)
         replicated[regime] = sorted(shared or [])
     return {
