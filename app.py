@@ -269,9 +269,9 @@ elif page == "مرکز سیگنال‌ها":
     if st.button("بررسی سیگنال"):
         try:
             df = add_indicators(fetch_ohlcv(exchange, symbol, "1h", 200))
-            # The newest exchange candle may still be forming; use the last completed candle.
-            closed_candle = df.iloc[-2]
-            sig = ema_rsi_signals(df).iloc[-2]
+            # fetch_ohlcv removes the still-forming candle, so the final row is closed.
+            closed_candle = df.iloc[-1]
+            sig = ema_rsi_signals(df).iloc[-1]
             if sig:
                 st.success("سیگنال فعلی: BUY")
             else:
