@@ -11,6 +11,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = [
     "داشبورد",
+    "کیف پول خودکار (آزمایشی)",
     "تحلیل بازار",
     "آزمایشگاه استراتژی",
     "مرکز سیگنال‌ها",
