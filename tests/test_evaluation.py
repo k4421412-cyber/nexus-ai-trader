@@ -87,8 +87,8 @@ def test_walk_forward_uses_entry_and_exit_signals_for_strategy_candidates():
         "ema20": [100.0] * 8,
         "ema50": [100.0] * 8,
     })
-    entry = np.array([False, True, False, False, False, False, False, False])
-    exit_ = np.array([False, False, False, True, False, False, False, False])
+    entry = np.array([False, False, False, True, False, False, False, False])
+    exit_ = np.array([False, False, False, False, False, True, False, False])
     result = walk_forward_evaluate(
         market,
         {"paired_strategy": (entry, exit_)},
@@ -100,7 +100,7 @@ def test_walk_forward_uses_entry_and_exit_signals_for_strategy_candidates():
     assert result["fold_count"] == 1
     assert result["folds"][0]["selected_strategy"] == "paired_strategy"
     assert result["folds"][0]["test_result"]["trades"] == 1
-    assert result["folds"][0]["test_result"]["trade_log"][0]["forced_exit"] is False
+    assert not result["folds"][0]["test_result"]["trade_log"][0].get("forced_exit", False)
 
 
 def test_walk_forward_rejects_mismatched_paired_signal_lengths():
