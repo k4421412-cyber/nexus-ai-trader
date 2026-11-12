@@ -78,3 +78,37 @@ def test_walk_forward_rejects_empty_candidates_and_short_history():
             train_size=6,
             test_size=3,
         )
+
+
+def test_walk_forward_uses_entry_and_exit_signals_for_strategy_candidates():
+    market = pd.DataFrame({
+        "open": [100.0, 100.0, 100.0, 100.0, 110.0, 110.0, 110.0, 110.0],
+        "close": [100.0, 100.0, 100.0, 100.0, 110.0, 110.0, 110.0, 110.0],
+        "ema20": [100.0] * 8,
+        "ema50": [100.0] * 8,
+    })
+    entry = np.array([False, True, False, False, False, False, False, False])
+    exit_ = np.array([False, False, False, True, False, False, False, False])
+    result = walk_forward_evaluate(
+        market,
+        {"paired_strategy": (entry, exit_)},
+        train_size=4,
+        test_size=4,
+        fee=0,
+        slippage=0,
+    )
+    assert result["fold_count"] == 1
+    assert result["folds"][0]["selected_strategy"] == "paired_strategy"
+    assert result["folds"][0]["test_result"]["trades"] == 1
+    assert result["folds"][0]["test_result"]["trade_log"][0]["forced_exit"] is False
+
+
+def test_walk_forward_rejects_mismatched_paired_signal_lengths():
+    market = market_data()
+    with pytest.raises(ValueError, match="matching"):
+        walk_forward_evaluate(
+            market,
+            {"bad_pair": (np.zeros(12, dtype=bool), np.zeros(11, dtype=bool))},
+            train_size=6,
+            test_size=3,
+        )
