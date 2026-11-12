@@ -32,14 +32,14 @@ If these variables are absent, the application clearly reports that the ledger i
 
 Test at 320px, 375px, 390px and 430px viewport widths on Android Chrome and iOS Safari:
 - no page-level horizontal overflow;
-- sidebar navigation remains reachable;
+- the horizontal navigation bar remains reachable and scrollable;
 - tables scroll within their own region;
 - metric labels and long symbols wrap without clipping;
 - primary controls are at least 44px high;
 - Persian RTL and mixed Latin ticker/address text remain legible;
 - all nine pages render without exceptions.
 
-Streamlit AppTest checks page rendering in CI; physical-device and browser viewport checks remain manual until browser automation is added.
+Streamlit AppTest and Playwright browser-viewport checks run in CI; physical-device acceptance on Android Chrome and iOS Safari remains a manual release check.
 
 ## Backtest limitations and next release gates
 
