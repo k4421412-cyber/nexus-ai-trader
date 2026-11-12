@@ -9,6 +9,7 @@ from nexus.evaluation import walk_forward_evaluate
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.auto_wallet import simulate_to_goal
+from nexus.strategy_knowledge import list_strategies
 from nexus.knowledge import save_note, load_notes
 from nexus.social_investment import SimulatedInvestmentPool
 
@@ -64,7 +65,7 @@ st.markdown("""
   <div class="nexus-sub">نسخه آزمایشی 0.3 · تحلیل بازار و معاملات مجازی</div>
 </div>
 """, unsafe_allow_html=True)
-pages = ["داشبورد", "کیف پول خودکار (آزمایشی)", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
+pages = ["داشبورد", "کیف پول خودکار (آزمایشی)", "دانشنامه استراتژی‌ها", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
 
@@ -377,6 +378,35 @@ elif page == "شکار توکن‌های DEX":
         except Exception as e:
             st.error(str(e))
     st.caption("این ابزار فقط اطلاعات عمومی بازار را نمایش می‌دهد و قرارداد را audit یا honeypot را تشخیص نمی‌دهد.")
+
+elif page == "دانشنامه استراتژی‌ها":
+    st.subheader("دانشنامه هوشمند استراتژی‌های معاملاتی")
+    catalogue = list_strategies()
+    st.caption(f"{len(catalogue)} خانواده و روش معاملاتی ثبت شده‌اند؛ فقط روش‌های دارای پیاده‌سازی سیگنال فعلاً قابلیت آزمایش اجرایی دارند.")
+    category_options = ["همه دسته‌ها"] + sorted({item["category"] for item in catalogue})
+    selected_category = st.selectbox("دسته‌بندی", category_options, key="strategy_knowledge_category")
+    filtered = catalogue if selected_category == "همه دسته‌ها" else [item for item in catalogue if item["category"] == selected_category]
+    status_filter = st.selectbox("وضعیت پیاده‌سازی", ["همه", "قابل آزمایش در موتور فعلی", "نیازمند پیاده‌سازی و تحقیق"], key="strategy_knowledge_status")
+    if status_filter == "قابل آزمایش در موتور فعلی":
+        filtered = [item for item in filtered if item["implemented"]]
+    elif status_filter == "نیازمند پیاده‌سازی و تحقیق":
+        filtered = [item for item in filtered if not item["implemented"]]
+    if filtered:
+        chosen_name = st.selectbox("انتخاب روش", [item["name"] for item in filtered], key="strategy_knowledge_selected")
+        chosen = next(item for item in filtered if item["name"] == chosen_name)
+        st.markdown(f"### {chosen['name']}")
+        st.write("**دسته:**", chosen["category"])
+        st.write("**روش استفاده:**", chosen["how_to_use"])
+        st.write("**شرایط مناسب:**", "، ".join(chosen["best_conditions"]))
+        st.write("**شرایط نامناسب / ریسک‌ها:**", "، ".join(chosen["avoid_conditions"]))
+        st.write("**داده‌های موردنیاز:**", chosen["required_data"])
+        if chosen["implemented"]:
+            st.success("برای این روش در موتور فعلی کد تولید سیگنال وجود دارد؛ این به معنی تأیید سودآوری نیست.")
+        else:
+            st.warning("این روش فعلاً در دانشنامه ثبت شده و هنوز کد اجرایی/تست معتبر در موتور NEXUS ندارد؛ اجازه معامله ندارد.")
+    else:
+        st.info("در این فیلتر موردی وجود ندارد.")
+    st.warning("شرایط مناسب، فرضیه اولیه برای آزمایش هستند نه قانون قطعی. هیچ استراتژی بدون بک‌تست واقع‌گرایانه و عبور از معیارهای پذیرش نباید فعال شود.")
 
 elif page == "مرکز یادگیری":
     st.subheader("دفترچه یادگیری")
