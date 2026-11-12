@@ -3,6 +3,23 @@ import numpy as np
 import pandas as pd
 
 
+def _validated_signal_array(values, length, name=""):
+    """Accept only 1-D boolean or binary numeric signals of the expected length."""
+    try:
+        array = np.asarray(values)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} signal must be a one-dimensional array with matching candle length") from exc
+    if array.ndim != 1 or len(array) != length:
+        raise ValueError(f"{name} signal must be one-dimensional with matching candle length")
+    if array.dtype.kind == "b":
+        return array.astype(bool, copy=False)
+    if array.dtype.kind in "iuf":
+        if not np.isfinite(array).all() or not np.isin(array, [0, 1]).all():
+            raise ValueError(f"{name} signal must contain only booleans or numeric 0/1 values")
+        return array.astype(bool)
+    raise ValueError(f"{name} signal must contain only booleans or numeric 0/1 values")
+
+
 def _indicators(df):
     x = df.copy()
     close = pd.to_numeric(x["close"], errors="coerce")
@@ -106,9 +123,10 @@ def run_backtest(df, entry, exit_, fee=0.001, slippage=0.0005, initial_balance=1
     if not math.isfinite(initial_balance) or initial_balance <= 0:
         raise ValueError("Initial balance must be positive")
     n = len(df)
-    entries, exits = np.asarray(entry, dtype=bool), np.asarray(exit_, dtype=bool)
-    if n < 3 or len(entries) != n or len(exits) != n:
+    if n < 3:
         raise ValueError("At least 3 candles and matching signal lengths are required")
+    entries = _validated_signal_array(entry, n, "Entry")
+    exits = _validated_signal_array(exit_, n, "Exit")
     market = df.reset_index(drop=True)
     op = pd.to_numeric(market.open, errors="coerce").to_numpy(dtype=float)
     cl = pd.to_numeric(market.close, errors="coerce").to_numpy(dtype=float)
