@@ -23,7 +23,7 @@ _STRATEGIES = [
     ("supertrend", "Supertrend", "trend", "Follow ATR-based trend state; reverse or trail stop when the band flips.", ["bullish", "bearish", "high_volatility"], ["sideways", "band whipsaw"], "OHLCV, ATR", False),
     ("ichimoku", "Ichimoku Cloud", "trend", "Use cloud position, Tenkan/Kijun cross and Chikou confirmation; avoid signals inside cloud.", ["bullish", "bearish"], ["sideways", "cloud congestion"], "OHLCV, Ichimoku components", False),
     ("parabolic_sar", "Parabolic SAR", "trend", "Trail a stop beneath/above price and reverse on SAR flip; best as trend management.", ["bullish", "bearish"], ["sideways", "rapid reversals"], "OHLCV, SAR", False),
-    (" donchian", "Donchian channel breakout", "breakout", "Enter on close beyond the prior range boundary; exit on opposite channel or trailing stop.", ["bullish", "bearish", "high_volatility"], ["sideways", "false breakouts"], "OHLCV, prior rolling highs/lows", True),
+    ("donchian_breakout", "Donchian channel breakout", "breakout", "Enter on close beyond the prior range boundary; exit on opposite channel or trailing stop.", ["bullish", "bearish", "high_volatility"], ["sideways", "false breakouts"], "OHLCV, prior rolling highs/lows", True),
     ("keltner_breakout", "Keltner channel breakout", "breakout", "Trade a close outside an EMA/ATR envelope with volatility expansion confirmation.", ["bullish", "bearish", "high_volatility"], ["low_volatility", "mean-reverting ranges"], "OHLCV, EMA, ATR", False),
     ("opening_range", "Opening range breakout", "breakout", "Break the first session range with volume confirmation and a defined invalidation level.", ["high_volatility"], ["low_volume sessions", "choppy opens"], "Intraday OHLCV, session calendar, volume", False),
     # Mean reversion
@@ -73,8 +73,6 @@ _STRATEGIES = [
     ("ensemble", "Ensemble / regime switching", "meta_strategy", "Combine independently validated strategies and allocate only when regime and confidence gates agree.", ["any"], ["correlated failures", "overfit weights"], "Validated component signals, regime labels, risk model", False),
 ]
 
-# Normalize a historical typo before exposing stable public IDs.
-_STRATEGIES = [tuple("donchian_breakout" if item[0] == " donchian" else item[0] for _ in [0]) + item[1:] if item[0] == " donchian" else item for item in _STRATEGIES]
 IMPLEMENTED_IDS = frozenset(row[0] for row in _STRATEGIES if row[-1])
 
 
