@@ -173,7 +173,7 @@ def test_market_data_rejects_invalid_ohlcv(monkeypatch, rows):
             self.config = config
 
         def parse_timeframe(self, timeframe):
-            return 3600
+            return 1
 
         def milliseconds(self):
             return 100_000
@@ -199,7 +199,7 @@ def test_market_data_accepts_valid_ohlcv(monkeypatch):
             self.config = config
 
         def parse_timeframe(self, timeframe):
-            return 3600
+            return 1
 
         def milliseconds(self):
             return 100_000
