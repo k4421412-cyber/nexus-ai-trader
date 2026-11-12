@@ -4,7 +4,8 @@ import pandas as pd
 from nexus.market_data import fetch_ohlcv
 from nexus.indicators import add_indicators
 from nexus.strategies import ema_rsi_signals, backtest
-from nexus.strategy_lab import compare_all, compare_by_regime
+from nexus.strategy_lab import compare_all, compare_by_regime, strategy_signals
+from nexus.evaluation import walk_forward_evaluate
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.knowledge import save_note, load_notes
@@ -220,7 +221,39 @@ elif page == "آزمایشگاه استراتژی":
             st.dataframe(pd.DataFrame(regime_rows), use_container_width=True, hide_index=True)
             st.caption("قانون پذیرش برای هر استراتژی در هر وضعیت جداگانه اعمال می‌شود: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت و Profit Factor بالاتر از ۱. وضعیت «داده ناکافی» به معنی تأیید نیست.")
 
-        st.caption("معیار قبول اولیه: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت، Profit Factor بالاتر از ۱. آزمون خارج از نمونه و walk-forward هنوز لازم است؛ ۱۰۰ معامله با ۱۰۰ آزمایش مستقل یکسان نیست.")
+        st.markdown("### آزمون Walk-forward خارج از نمونه")
+        st.caption("در هر مرحله، بهترین روش فقط با داده‌های گذشته انتخاب می‌شود و سپس روی بازه بعدی آزمایش می‌شود. هر بازه با موجودی مجازی مستقل اجرا می‌شود.")
+        wf_col1, wf_col2 = st.columns(2)
+        wf_train = wf_col1.number_input("تعداد کندل آموزش", min_value=100, max_value=1200, value=500, step=50, key="wf_train")
+        wf_test = wf_col2.number_input("تعداد کندل آزمون", min_value=30, max_value=300, value=100, step=10, key="wf_test")
+        if st.button("اجرای آزمون Walk-forward", type="secondary", use_container_width=True):
+            try:
+                with st.spinner("اجرای ارزیابی خارج از نمونه برای ۱۱ استراتژی..."):
+                    wf_market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
+                    wf_candidates = strategy_signals(wf_market)
+                    wf_result = walk_forward_evaluate(wf_market, wf_candidates, train_size=int(wf_train), test_size=int(wf_test), fee=fee, slippage=slippage, initial_balance=initial_balance)
+                st.session_state["strategy_lab_walk_forward"] = wf_result
+                st.success(f"آزمون خارج از نمونه در {wf_result['fold_count']} بازه انجام شد.")
+            except Exception as exc:
+                st.error(f"اجرای Walk-forward ناموفق بود: {exc}")
+        wf_result = st.session_state.get("strategy_lab_walk_forward")
+        if wf_result:
+            st.markdown("#### خلاصه نتایج خارج از نمونه")
+            w1, w2, w3, w4 = st.columns(4)
+            w1.metric("تعداد بازه‌ها", wf_result["fold_count"])
+            w2.metric("میانگین بازده آزمون", f"{wf_result['average_oos_net_return_pct']:.2f}%")
+            w3.metric("بدترین افت سرمایه", f"{wf_result['worst_oos_drawdown_pct']:.2f}%")
+            w4.metric("معاملات بسته آزمون", wf_result["oos_closed_trade_count"])
+            selected_rows = [{"استراتژی منتخب": name, "تعداد دفعات انتخاب": count} for name, count in wf_result["selected_strategy_counts"].items()]
+            st.dataframe(pd.DataFrame(selected_rows), use_container_width=True, hide_index=True)
+            fold_rows = []
+            for index, fold in enumerate(wf_result["folds"], start=1):
+                result = fold["test_result"]
+                fold_rows.append({"بازه": index, "استراتژی منتخب": fold["selected_strategy"], "شروع آزمون": fold["test_start"], "پایان آزمون": fold["test_end_exclusive"], "بازده خالص (%)": round(result["net_return_pct"], 2), "افت سرمایه (%)": round(result["max_drawdown_pct"], 2), "معاملات بسته": result["trades"]})
+            st.dataframe(pd.DataFrame(fold_rows), use_container_width=True, hide_index=True)
+            st.warning("نتیجه Walk-forward تضمین سود یا تأیید معامله واقعی نیست. معیار ۸۰٪ و حداقل ۱۰۰ معامله باید جداگانه با داده کافی بررسی شود.")
+
+        st.caption("معیار قبول اولیه: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت، Profit Factor بالاتر از ۱. آزمون خارج از نمونه و walk-forward نیز لازم است؛ ۱۰۰ معامله با ۱۰۰ آزمایش مستقل یکسان نیست.")
     else:
         st.info("برای شروع، نماد و تایم‌فریم را انتخاب کن و روی «آزمایش همه استراتژی‌ها» بزن.")
 
