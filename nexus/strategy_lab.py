@@ -76,6 +76,53 @@ def _indicators(df):
     x["keltner_mid"] = x["ema20"]
     x["keltner_upper"] = x["keltner_mid"] + 2 * x["atr"]
     x["keltner_lower"] = x["keltner_mid"] - 2 * x["atr"]
+
+    # Causal Supertrend: each band/state uses only current and prior candles.
+    midpoint = (high + low) / 2
+    basic_upper = midpoint + 3 * atr_wilder
+    basic_lower = midpoint - 3 * atr_wilder
+    final_upper = np.full(len(x), np.nan)
+    final_lower = np.full(len(x), np.nan)
+    direction = np.zeros(len(x), dtype=int)
+    first_valid = np.flatnonzero(atr_wilder.notna().to_numpy())
+    if len(first_valid):
+        start = int(first_valid[0])
+        final_upper[start] = basic_upper.iloc[start]
+        final_lower[start] = basic_lower.iloc[start]
+        direction[start] = 1
+        for i in range(start + 1, len(x)):
+            previous_upper = final_upper[i - 1]
+            previous_lower = final_lower[i - 1]
+            final_upper[i] = (
+                basic_upper.iloc[i]
+                if basic_upper.iloc[i] < previous_upper or close.iloc[i - 1] > previous_upper
+                else previous_upper
+            )
+            final_lower[i] = (
+                basic_lower.iloc[i]
+                if basic_lower.iloc[i] > previous_lower or close.iloc[i - 1] < previous_lower
+                else previous_lower
+            )
+            if direction[i - 1] < 0 and close.iloc[i] > final_upper[i]:
+                direction[i] = 1
+            elif direction[i - 1] > 0 and close.iloc[i] < final_lower[i]:
+                direction[i] = -1
+            else:
+                direction[i] = direction[i - 1]
+    x["supertrend_direction"] = direction
+    x["supertrend"] = np.where(direction > 0, final_lower, final_upper)
+
+    # Ichimoku cloud values are shifted forward on charts; shift them back
+    # here to compare only the cloud that was already visible at each candle.
+    tenkan = (high.rolling(9).max() + low.rolling(9).min()) / 2
+    kijun = (high.rolling(26).max() + low.rolling(26).min()) / 2
+    span_a_visible = ((tenkan + kijun) / 2).shift(26)
+    span_b_visible = ((high.rolling(52).max() + low.rolling(52).min()) / 2).shift(26)
+    x["ichimoku_tenkan"] = tenkan
+    x["ichimoku_kijun"] = kijun
+    x["ichimoku_cloud_top"] = pd.concat([span_a_visible, span_b_visible], axis=1).max(axis=1)
+    x["ichimoku_cloud_bottom"] = pd.concat([span_a_visible, span_b_visible], axis=1).min(axis=1)
+    x["ichimoku_chikou_confirm"] = close > high.shift(26)
     return x
 
 
@@ -135,6 +182,17 @@ def strategy_signals(df):
     specs["Keltner channel breakout"] = (
         (c > x.keltner_upper) & (c.shift(1) <= x.keltner_upper.shift(1)),
         c < x.keltner_mid
+    )
+    specs["Supertrend"] = (
+        (x.supertrend_direction > 0) & (x.supertrend_direction.shift(1) < 0),
+        (x.supertrend_direction < 0) & (x.supertrend_direction.shift(1) > 0)
+    )
+    specs["Ichimoku Cloud"] = (
+        (c > x.ichimoku_cloud_top)
+        & (x.ichimoku_tenkan > x.ichimoku_kijun)
+        & (x.ichimoku_tenkan.shift(1) <= x.ichimoku_kijun.shift(1))
+        & x.ichimoku_chikou_confirm,
+        (c < x.ichimoku_cloud_bottom) | (x.ichimoku_tenkan < x.ichimoku_kijun)
     )
     return {name: (entry.fillna(False).astype(bool), exit_.fillna(False).astype(bool)) for name, (entry, exit_) in specs.items()}
 
