@@ -18,8 +18,11 @@ def test_encrypted_ledger_persists_and_restores_state(tmp_path):
     pool.record_trade("17.50", "1.25")
 
     ciphertext = path.read_bytes()
+    plaintext = Fernet(key).decrypt(ciphertext)
     assert b"confidential-investor" not in ciphertext
-    assert b"250" not in ciphertext
+    assert b"confidential-investor" in plaintext
+    assert b'"250"' in plaintext
+    assert ciphertext != plaintext
     restored = SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
     assert restored.persistent is True
     assert restored.investor_report("confidential-investor") == pool.investor_report("confidential-investor")
