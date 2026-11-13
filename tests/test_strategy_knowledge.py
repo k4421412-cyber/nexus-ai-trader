@@ -13,7 +13,7 @@ def test_catalog_is_broad_and_contains_usage_and_regime_guidance():
 
 def test_only_signal_engine_implemented_methods_are_executable():
     executable = executable_strategy_ids()
-    assert len(executable) == 15
+    assert len(executable) == 17
     assert all(get_strategy(strategy_id)["implemented"] for strategy_id in executable)
     assert all(not row["implemented"] for row in list_strategies() if row["status"] == "research_only")
 
