@@ -71,6 +71,52 @@ def test_strategy_signal_executes_only_at_next_candle_open():
         assert trade["entry_index"] == trade["entry_signal_index"] + 1
 
 
+def test_regime_adaptive_mode_uses_prior_candle_and_exits_on_regime_change(monkeypatch):
+    import nexus.auto_wallet as auto_wallet
+
+    market = sample_market()
+    entry = pd.Series([False, True, False, False, False, False, False, False])
+    no_exit = pd.Series([False] * len(market))
+    monkeypatch.setattr(
+        auto_wallet,
+        "strategy_signals",
+        lambda _: {
+            "EMA 9/21 crossover": (entry, no_exit),
+            "MACD crossover": (no_exit, no_exit),
+        },
+    )
+    monkeypatch.setattr(
+        auto_wallet,
+        "classify_market_regime",
+        lambda _: pd.Series([
+            "insufficient_data", "bullish", "bearish", "bearish",
+            "bearish", "bearish", "bearish", "bearish",
+        ]),
+    )
+    result = auto_wallet.simulate_to_goal(
+        market, initial_balance=100, target_balance=1000,
+        max_position_pct=100, fee_pct=0, slippage_pct=0,
+        strategy_by_regime={
+            "bullish": "EMA 9/21 crossover",
+            "bearish": "MACD crossover",
+        },
+    )
+    assert result["strategy"] == "regime-adaptive"
+    assert result["trade_log"][0]["entry_signal_index"] == 1
+    assert result["trade_log"][0]["entry_index"] == 2
+    assert result["trade_log"][0]["entry_regime"] == "bullish"
+    assert result["trade_log"][0]["exit_index"] == 3
+    assert result["trade_log"][0]["strategy"] == "EMA 9/21 crossover"
+
+
+def test_regime_adaptive_mode_rejects_research_only_strategies():
+    with pytest.raises(ValueError, match="Unknown or non-executable"):
+        simulate_to_goal(
+            sample_market(),
+            strategy_by_regime={"bullish": "Supertrend"},
+        )
+
+
 def test_rejects_unknown_or_research_only_strategy():
     with pytest.raises(ValueError, match="Unknown or non-executable"):
         simulate_to_goal(sample_market(), strategy_name="Supertrend")
