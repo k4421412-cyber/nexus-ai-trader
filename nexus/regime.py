@@ -28,6 +28,16 @@ def detect_market_regime(market, *, lookback=50):
             raise ValueError("Market prices must be positive")
     if (high < low).any() or (close > high).any() or (close < low).any():
         raise ValueError("OHLC prices are inconsistent")
+    if "open" in data.columns:
+        open_ = pd.to_numeric(data["open"], errors="coerce")
+        if not all(math.isfinite(float(value)) for value in open_) or (open_ <= 0).any():
+            raise ValueError("Market open prices must be finite and positive")
+        if (open_ > high).any() or (open_ < low).any():
+            raise ValueError("OHLC open prices are inconsistent")
+    if "timestamp" in data.columns:
+        timestamps = pd.to_numeric(data["timestamp"], errors="coerce")
+        if not all(math.isfinite(float(value)) for value in timestamps) or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
+            raise ValueError("Market timestamps must be finite, unique and chronological")
 
     if len(data) < lookback:
         return {"regime": "unknown", "confidence": 0.0, "trend_strength_pct": None, "volatility_pct": None, "lookback": len(data)}
