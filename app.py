@@ -145,6 +145,8 @@ elif page == "کیف پول خودکار (آزمایشی)":
     symbol = c8.text_input("نماد", "BTC/USDT", key="auto_wallet_symbol")
     timeframe = c9.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_wallet_timeframe")
     candle_limit = st.slider("تعداد کندل بسته‌شده", 100, 1000, 1000, 100, key="auto_wallet_candles")
+    executable_names = [item["name"] for item in list_strategies() if item["implemented"]]
+    strategy_name = st.selectbox("استراتژی برای شبیه‌سازی", executable_names, index=executable_names.index("EMA 20/50 + RSI"), key="auto_wallet_strategy")
     if st.button("اجرای شبیه‌سازی تا هدف یا حد زیان", type="primary", use_container_width=True):
         try:
             with st.spinner("دریافت داده‌های عمومی و اجرای بازپخش معاملات مجازی..."):
@@ -157,11 +159,12 @@ elif page == "کیف پول خودکار (آزمایشی)":
                     max_position_pct=max_position_pct,
                     fee_pct=fee_pct,
                     slippage_pct=slippage_pct,
+                    strategy_name=strategy_name,
                 )
             st.session_state["auto_wallet_result"] = result
             st.session_state["auto_wallet_meta"] = {
                 "exchange": exchange, "symbol": symbol, "timeframe": timeframe,
-                "candles": len(market),
+                "candles": len(market), "strategy": strategy_name,
             }
         except Exception as exc:
             st.error(f"اجرای شبیه‌سازی ناموفق بود: {exc}")
@@ -182,7 +185,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
         b.metric("هدف", f'{result["target_balance"]:.4f} USDT')
         c.metric("سود/زیان خالص", f'{result["net_pnl"]:+.4f} USDT')
         d.metric("تعداد معاملات", result["trades"])
-        st.caption(f'بازار: {meta.get("exchange")} · {meta.get("symbol")} · {meta.get("timeframe")} · {meta.get("candles")} کندل بسته‌شده')
+        st.caption(f'بازار: {meta.get("exchange")} · {meta.get("symbol")} · {meta.get("timeframe")} · استراتژی: {meta.get("strategy")} · {meta.get("candles")} کندل بسته‌شده')
         curve = pd.DataFrame({
             "شماره کندل": range(len(result["equity_curve"])),
             "ارزش حساب مجازی (USDT)": result["equity_curve"],
@@ -193,7 +196,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
         else:
             st.info("در این بازه هیچ معامله‌ای با شرط استراتژی انجام نشد.")
         st.caption(
-            "این نسخه فقط بازپخش تاریخی با استراتژی EMA/RSI است؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
+            "این نسخه بازپخش تاریخی یکی از ۱۱ استراتژی پیاده‌سازی‌شده را اجرا می‌کند؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
             "حداقل سفارش صرافی، نقدشوندگی و کارمزد واقعی ممکن است باعث شود سرمایه ۱ دلاری قابل معامله نباشد. "
             "اتصال API با مجوز فقط معامله و بدون برداشت، مرحله‌ای جداگانه و نیازمند تأیید صریح خواهد بود."
         )
