@@ -17,10 +17,10 @@ def sample_market(n=500):
     return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close})
 
 
-def test_strategy_library_has_fifteen_boolean_signal_pairs():
+def test_strategy_library_has_seventeen_boolean_signal_pairs():
     market = sample_market()
     signals = strategy_signals(market)
-    assert len(signals) == 15
+    assert len(signals) == 17
     for entry, exit_ in signals.values():
         assert len(entry) == len(market)
         assert len(exit_) == len(market)
@@ -84,7 +84,7 @@ def test_backtest_force_closes_open_position_at_final_candle():
 
 def test_comparison_returns_every_strategy_and_does_not_fake_qualification():
     results = compare_all(sample_market(), fee=0.001, slippage=0.0005)
-    assert len(results) == 15
+    assert len(results) == 17
     assert all("qualifies" in row and "trades" in row for row in results)
     assert all(row["qualifies"] is False for row in results if row["trades"] < 100)
 
@@ -154,7 +154,7 @@ def test_regime_classifier_marks_warmup_as_insufficient_data():
     assert labels.iloc[199:].isin(["bullish", "bearish", "sideways"]).all()
 
 
-def test_all_fifteen_strategies_are_evaluated_separately_by_regime():
+def test_all_seventeen_strategies_are_evaluated_separately_by_regime():
     results = compare_by_regime(sample_market(600), fee=0.001, slippage=0.0005)
     assert len(results) == 13
     expected = {"bullish", "bearish", "sideways"}
