@@ -239,6 +239,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
             "ارزش حساب مجازی (USDT)": result["equity_curve"],
         }).set_index("شماره کندل")
         st.line_chart(curve, use_container_width=True)
+        st.caption("بیشترین افت سرمایه از ارزش پایان هر کندل محاسبه می‌شود؛ افت داخل کندل، گپ قیمت یا لغزش بیشتر می‌تواند زیان واقعی را افزایش دهد.")
         if result["trade_log"]:
             st.dataframe(pd.DataFrame(result["trade_log"]), use_container_width=True, hide_index=True)
         else:
