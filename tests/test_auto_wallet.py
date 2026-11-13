@@ -124,7 +124,7 @@ def test_rejects_unknown_or_research_only_strategy():
         simulate_to_goal(sample_market(), strategy_name="Supertrend")
 
 
-def test_all_eleven_implemented_strategies_can_run_in_paper_mode():
+def test_all_implemented_strategies_can_run_in_paper_mode():
     from nexus.strategy_lab import strategy_signals
 
     market = sample_market()
