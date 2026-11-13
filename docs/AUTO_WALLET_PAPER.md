@@ -2,7 +2,7 @@
 
 ## Scope
 
-The Auto Wallet page is a simulation-only feature. It replays completed OHLCV candles and uses the existing EMA/RSI entry rule with an EMA trend exit. Signals from candle N are executed at candle N+1 open to avoid same-candle lookahead.
+The Auto Wallet page is a simulation-only feature. It can replay any of the 11 strategies currently implemented by the signal engine. The selected strategy supplies both entry and exit signals. Signals from candle N are executed at candle N+1 open to avoid same-candle lookahead. Research-only catalogue entries are rejected by the simulator.
 
 The simulator:
 - starts with a configurable virtual USDT balance (default: 1 USDT);
@@ -10,7 +10,7 @@ The simulator:
 - applies a maximum loss threshold and maximum position allocation;
 - accounts for estimated entry/exit fees and slippage;
 - liquidates at the target, risk limit, or end of the supplied historical range;
-- reports trade history and an equity curve.
+- reports trade history, the selected strategy name and an equity curve.
 
 ## Safety boundaries
 
