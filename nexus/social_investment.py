@@ -189,7 +189,10 @@ class SimulatedInvestmentPool:
             self.total_contributed = Decimal(payload["total_contributed"])
             self.cumulative_net_pnl = Decimal(payload["cumulative_net_pnl"])
             self.high_water_mark = Decimal(payload["high_water_mark"])
-            self.started = bool(payload["started"])
+            started = payload["started"]
+            if not isinstance(started, bool):
+                raise ValueError("Invalid started flag in encrypted ledger")
+            self.started = started
             if not all(value.is_finite() for value in (self.total_contributed, self.cumulative_net_pnl, self.high_water_mark)):
                 raise ValueError("Non-finite pool totals in encrypted ledger")
             if self.total_contributed != sum((a["contributed"] for a in restored.values()), Decimal("0")):

@@ -15,6 +15,13 @@ def fetch_ohlcv(exchange_id="binance", symbol="BTC/USDT", timeframe="1h", limit=
 
     exchange_cls = getattr(ccxt, exchange_id)
     exchange = exchange_cls({"enableRateLimit": True, "timeout": 20000})
+    try:
+        timeframe_ms = exchange.parse_timeframe(timeframe) * 1000
+    except (TypeError, ValueError, KeyError, NotImplementedError) as exc:
+        raise ValueError(f"Unsupported timeframe: {timeframe}") from exc
+    if not np.isfinite(timeframe_ms) or timeframe_ms <= 0:
+        raise ValueError(f"Unsupported timeframe: {timeframe}")
+
     rows = exchange.fetch_ohlcv(symbol.strip(), timeframe=timeframe, limit=limit)
     if not rows:
         raise RuntimeError("No market data returned")
@@ -34,4 +41,15 @@ def fetch_ohlcv(exchange_id="binance", symbol="BTC/USDT", timeframe="1h", limit=
         raise RuntimeError("Exchange returned inconsistent candle highs")
     if (df["low"] > df[["open", "close", "high"]].min(axis=1)).any():
         raise RuntimeError("Exchange returned inconsistent candle lows")
+
+    # CCXT commonly includes the currently-forming candle. Never use it in
+    # historical backtests: its close and indicators can still change.
+    now_ms = exchange.milliseconds()
+    if not np.isfinite(now_ms):
+        raise RuntimeError("Exchange returned an invalid current timestamp")
+    if (df["timestamp"] > now_ms).any():
+        raise RuntimeError("Exchange returned candle timestamps in the future")
+    df = df.loc[df["timestamp"] + timeframe_ms <= now_ms].reset_index(drop=True)
+    if df.empty:
+        raise RuntimeError("No fully closed candles returned; retry after the current candle closes")
     return df

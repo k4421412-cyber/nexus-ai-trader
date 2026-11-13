@@ -5,7 +5,7 @@ The repository now includes a Docker image and a persistent named volume for the
 ## Before starting
 
 1. Provision a trusted server with Docker Engine and Docker Compose.
-2. Restrict inbound access to port 8501 behind HTTPS reverse proxy/authentication; do not expose the app publicly without access control.
+2. The Compose file binds port 8501 to host loopback (`127.0.0.1`) by default. Put an HTTPS reverse proxy with authentication in front of it; do not change the bind address to `0.0.0.0` or expose the app publicly without access control.
 3. Create a Fernet key in a trusted terminal:
    ```bash
    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

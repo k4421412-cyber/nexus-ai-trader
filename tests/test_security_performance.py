@@ -178,3 +178,15 @@ def test_persistent_ledger_reconciles_withdrawals_after_restart(tmp_path):
     assert report["virtual_value"] == "85"
     assert report["withdrawn"] == "40"
     assert restored.summary()["current_virtual_balance"] == "85"
+
+
+def test_encrypted_ledger_rejects_non_boolean_started_flag(tmp_path):
+    key = Fernet.generate_key()
+    path = tmp_path / "ledger.enc"
+    SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+    cipher = Fernet(key)
+    payload = json.loads(cipher.decrypt(path.read_bytes()))
+    payload["started"] = "false"
+    path.write_bytes(cipher.encrypt(json.dumps(payload).encode()))
+    with pytest.raises(ValueError, match="Invalid started flag"):
+        SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
