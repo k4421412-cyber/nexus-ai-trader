@@ -145,8 +145,32 @@ elif page == "کیف پول خودکار (آزمایشی)":
     symbol = c8.text_input("نماد", "BTC/USDT", key="auto_wallet_symbol")
     timeframe = c9.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_wallet_timeframe")
     candle_limit = st.slider("تعداد کندل بسته‌شده", 100, 1000, 1000, 100, key="auto_wallet_candles")
+    strategy_mode = st.radio(
+        "روش انتخاب استراتژی",
+        ["انتخاب دستی", "انتخاب خودکار بر اساس اعتبارسنجی چندنمادی"],
+        horizontal=True,
+        key="auto_wallet_strategy_mode",
+    )
     executable_names = [item["name"] for item in list_strategies() if item["implemented"]]
-    strategy_name = st.selectbox("استراتژی برای شبیه‌سازی", executable_names, index=executable_names.index("EMA 20/50 + RSI"), key="auto_wallet_strategy")
+    strategy_by_regime = None
+    strategy_name = "EMA 20/50 + RSI"
+    if strategy_mode == "انتخاب دستی":
+        strategy_name = st.selectbox(
+            "استراتژی برای شبیه‌سازی", executable_names,
+            index=executable_names.index("EMA 20/50 + RSI"),
+            key="auto_wallet_strategy",
+        )
+    else:
+        cross_result = st.session_state.get("strategy_cross_result", {})
+        replicated = cross_result.get("replicated_candidates_by_regime", {})
+        strategy_by_regime = {
+            regime: names[0] for regime, names in replicated.items() if names
+        }
+        if strategy_by_regime:
+            st.info("ربات فقط بین نامزدهایی انتخاب می‌کند که در اعتبارسنجی چندنمادیِ مستقل از آزمون عبور کرده‌اند. این انتخاب فقط برای شبیه‌سازی است.")
+            st.write("نامزدهای فعال برای بازپخش:", strategy_by_regime)
+        else:
+            st.warning("ابتدا در صفحه «انتخاب‌گر هوشمند استراتژی»، اعتبارسنجی مشترک حداقل دو نماد را اجرا کن؛ تا آن زمان انتخاب خودکار غیرفعال است.")
     if st.button("اجرای شبیه‌سازی تا هدف یا حد زیان", type="primary", use_container_width=True):
         try:
             with st.spinner("دریافت داده‌های عمومی و اجرای بازپخش معاملات مجازی..."):
@@ -160,11 +184,12 @@ elif page == "کیف پول خودکار (آزمایشی)":
                     fee_pct=fee_pct,
                     slippage_pct=slippage_pct,
                     strategy_name=strategy_name,
+                    strategy_by_regime=strategy_by_regime,
                 )
             st.session_state["auto_wallet_result"] = result
             st.session_state["auto_wallet_meta"] = {
                 "exchange": exchange, "symbol": symbol, "timeframe": timeframe,
-                "candles": len(market), "strategy": strategy_name,
+                "candles": len(market), "strategy": result["strategy"],
             }
         except Exception as exc:
             st.error(f"اجرای شبیه‌سازی ناموفق بود: {exc}")
@@ -196,7 +221,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
         else:
             st.info("در این بازه هیچ معامله‌ای با شرط استراتژی انجام نشد.")
         st.caption(
-            "این نسخه بازپخش تاریخی یکی از ۱۱ استراتژی پیاده‌سازی‌شده را اجرا می‌کند؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
+            "این نسخه بازپخش تاریخی یکی از ۱۱ استراتژی پیاده‌سازی‌شده یا انتخاب تطبیقیِ نامزدهای عبورکرده از اعتبارسنجی چندنمادی را اجرا می‌کند؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
             "حداقل سفارش صرافی، نقدشوندگی و کارمزد واقعی ممکن است باعث شود سرمایه ۱ دلاری قابل معامله نباشد. "
             "اتصال API با مجوز فقط معامله و بدون برداشت، مرحله‌ای جداگانه و نیازمند تأیید صریح خواهد بود."
         )
