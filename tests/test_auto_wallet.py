@@ -28,6 +28,13 @@ def test_simulation_is_explicitly_paper_only_and_respects_target():
     assert result["simulation_only"] is True
     assert result["live_orders_sent"] is False
     assert result["final_balance"] >= 1
+    assert 0 <= result["max_drawdown_pct"] <= 100
+    peak = result["equity_curve"][0]
+    expected_drawdown = 0.0
+    for equity in result["equity_curve"]:
+        peak = max(peak, equity)
+        expected_drawdown = max(expected_drawdown, (peak - equity) / peak * 100)
+    assert result["max_drawdown_pct"] == pytest.approx(expected_drawdown, abs=0.0001)
     assert result["status"] in {"target_reached", "target_touched_before_exit_costs", "history_exhausted"}
 
 
