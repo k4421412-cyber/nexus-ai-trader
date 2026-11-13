@@ -115,13 +115,13 @@ def test_regime_adaptive_mode_rejects_research_only_strategies():
     with pytest.raises(ValueError, match="Unknown or non-executable"):
         simulate_to_goal(
             sample_market(),
-            strategy_by_regime={"bullish": "Supertrend"},
+            strategy_by_regime={"bullish": "Pairs trading"},
         )
 
 
 def test_rejects_unknown_or_research_only_strategy():
     with pytest.raises(ValueError, match="Unknown or non-executable"):
-        simulate_to_goal(sample_market(), strategy_name="Supertrend")
+        simulate_to_goal(sample_market(), strategy_name="Pairs trading")
 
 
 def test_all_implemented_strategies_can_run_in_paper_mode():
