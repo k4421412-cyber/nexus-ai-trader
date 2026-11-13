@@ -7,7 +7,7 @@ This plan applies to the simulation-only MVP. Passing CI is evidence for the cov
 - Core correctness: OHLCV validation, indicators, signal input validation, paper-wallet accounting and failure atomicity.
 - Financial scenarios: fees, slippage, open-position liquidation estimate, drawdown, exposure, expectancy, profit factor, profit/loss allocation, high-water mark and 100 seeded randomized backtest scenarios.
 - Persistence/security: Fernet authenticated encryption, wrong-key rejection, ciphertext tamper rejection, event hash-chain validation, file-write failure rollback and explicit key/path configuration.
-- Performance: deterministic 5,000-candle backtest budget in CI. This is a regression guard, not a production load test.
+- Performance: deterministic 5,000-candle backtest and full 19-strategy indicator-generation budgets in CI. These are regression guards, not production load tests.
 - UI/mobile smoke: Streamlit AppTest on every navigation page and responsive CSS rules for narrow screens, readable metrics, horizontally scrollable data tables and touch-sized buttons.
 - Static security: Bandit scan and dependency vulnerability audit in GitHub Actions.
 
