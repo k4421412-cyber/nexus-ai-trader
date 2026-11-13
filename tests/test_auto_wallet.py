@@ -64,6 +64,17 @@ def test_rejects_missing_or_non_finite_market_data():
         simulate_to_goal(bad)
 
 
+def test_strategy_signal_executes_only_at_next_candle_open():
+    result = simulate_to_goal(
+        sample_market(), initial_balance=100, target_balance=1000,
+        max_position_pct=100, fee_pct=0, slippage_pct=0,
+        strategy_name="EMA 9/21 crossover",
+    )
+    assert result["trade_log"]
+    for trade in result["trade_log"]:
+        assert trade["entry_index"] == trade["entry_signal_index"] + 1
+
+
 def test_rejects_unknown_or_research_only_strategy():
     with pytest.raises(ValueError, match="Unknown or non-executable"):
         simulate_to_goal(sample_market(), strategy_name="Supertrend")
