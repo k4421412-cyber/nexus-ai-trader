@@ -162,15 +162,25 @@ elif page == "کیف پول خودکار (آزمایشی)":
         )
     else:
         cross_result = st.session_state.get("strategy_cross_result", {})
+        cross_meta = st.session_state.get("strategy_cross_meta", {})
+        validated_symbols = [item.upper() for item in cross_meta.get("symbols", [])]
+        same_validation_scope = (
+            cross_meta.get("exchange") == exchange
+            and cross_meta.get("timeframe") == timeframe
+            and symbol.strip().upper() in validated_symbols
+        )
         replicated = cross_result.get("replicated_candidates_by_regime", {})
         strategy_by_regime = {
             regime: names[0] for regime, names in replicated.items() if names
-        }
+        } if same_validation_scope else {}
         if strategy_by_regime:
-            st.info("ربات فقط بین نامزدهایی انتخاب می‌کند که در اعتبارسنجی چندنمادیِ مستقل از آزمون عبور کرده‌اند. این انتخاب فقط برای شبیه‌سازی است.")
+            st.info("ربات فقط بین نامزدهایی انتخاب می‌کند که در اعتبارسنجی مستقلِ چندنمادی عبور کرده‌اند. این انتخاب فقط برای شبیه‌سازی است.")
+            st.caption(f"دامنه اعتبارسنجی: {cross_meta.get('exchange')} · {cross_meta.get('timeframe')} · {', '.join(cross_meta.get('symbols', []))}")
             st.write("نامزدهای فعال برای بازپخش:", strategy_by_regime)
+        elif not same_validation_scope:
+            st.warning("برای جلوگیری از تعمیم بی‌پشتوانه، انتخاب خودکار فقط روی همان صرافی، تایم‌فریم و نمادی فعال می‌شود که در اعتبارسنجی چندنمادی حضور داشته باشد. اعتبارسنجی را با نماد فعلی و دست‌کم یک نماد دیگر تکرار کن.")
         else:
-            st.warning("ابتدا در صفحه «انتخاب‌گر هوشمند استراتژی»، اعتبارسنجی مشترک حداقل دو نماد را اجرا کن؛ تا آن زمان انتخاب خودکار غیرفعال است.")
+            st.warning("اعتبارسنجی چندنمادی نامزد مشترکی را تأیید نکرده است؛ در حالت خودکار معامله‌ای انجام نمی‌شود.")
     if st.button("اجرای شبیه‌سازی تا هدف یا حد زیان", type="primary", use_container_width=True):
         try:
             with st.spinner("دریافت داده‌های عمومی و اجرای بازپخش معاملات مجازی..."):
@@ -300,6 +310,10 @@ elif page == "انتخاب‌گر هوشمند استراتژی":
                 }
                 cross_result = validate_across_markets(market_sets)
             st.session_state["strategy_cross_result"] = cross_result
+            st.session_state["strategy_cross_meta"] = {
+                "exchange": screen_exchange, "timeframe": screen_timeframe,
+                "symbols": symbols, "candles": screen_candles,
+            }
         except Exception as exc:
             st.error(f"اعتبارسنجی چندنمادی ناموفق بود: {exc}")
     cross_result = st.session_state.get("strategy_cross_result")
