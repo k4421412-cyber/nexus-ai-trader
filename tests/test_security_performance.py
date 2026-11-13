@@ -211,6 +211,6 @@ def test_all_strategy_indicators_handle_5000_candles_within_budget():
     started = time.perf_counter()
     signals = strategy_signals(market)
     elapsed = time.perf_counter() - started
-    assert len(signals) == 19
+    assert len(signals) == 20
     assert all(len(entry) == n and len(exit_) == n for entry, exit_ in signals.values())
     assert elapsed < 10.0
