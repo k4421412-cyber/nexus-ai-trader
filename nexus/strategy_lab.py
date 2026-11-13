@@ -56,7 +56,20 @@ def _indicators(df):
     low14 = low.rolling(14).min()
     high14 = high.rolling(14).max()
     x["stoch_k"] = 100 * (close - low14) / (high14 - low14).replace(0, np.nan)
-    x["atr"] = pd.concat([high-low, (high-close.shift()).abs(), (low-close.shift()).abs()], axis=1).max(axis=1).rolling(14).mean()
+    true_range = pd.concat([high-low, (high-close.shift()).abs(), (low-close.shift()).abs()], axis=1).max(axis=1)
+    x["atr"] = true_range.rolling(14).mean()
+    atr_wilder = true_range.ewm(alpha=1/14, adjust=False, min_periods=14).mean()
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    x["plus_di"] = 100 * plus_dm.ewm(alpha=1/14, adjust=False, min_periods=14).mean() / atr_wilder.replace(0, np.nan)
+    x["minus_di"] = 100 * minus_dm.ewm(alpha=1/14, adjust=False, min_periods=14).mean() / atr_wilder.replace(0, np.nan)
+    dx = 100 * (x["plus_di"] - x["minus_di"]).abs() / (x["plus_di"] + x["minus_di"]).replace(0, np.nan)
+    x["adx"] = dx.ewm(alpha=1/14, adjust=False, min_periods=14).mean()
+    x["keltner_mid"] = x["ema20"]
+    x["keltner_upper"] = x["keltner_mid"] + 2 * x["atr"]
+    x["keltner_lower"] = x["keltner_mid"] - 2 * x["atr"]
     return x
 
 
@@ -108,6 +121,14 @@ def strategy_signals(df):
     specs["EMA trend + MACD"] = (
         (x.ema20 > x.ema50) & (x.macd > x.macd_signal) & (x.macd.shift(1) <= x.macd_signal.shift(1)),
         (x.ema20 < x.ema50) | (x.macd < x.macd_signal)
+    )
+    specs["ADX + Directional Movement"] = (
+        (x.plus_di > x.minus_di) & (x.plus_di.shift(1) <= x.minus_di.shift(1)) & (x.adx >= 20),
+        (x.minus_di > x.plus_di) | (x.adx < 15)
+    )
+    specs["Keltner channel breakout"] = (
+        (c > x.keltner_upper) & (c.shift(1) <= x.keltner_upper.shift(1)),
+        c < x.keltner_mid
     )
     return {name: (entry.fillna(False).astype(bool), exit_.fillna(False).astype(bool)) for name, (entry, exit_) in specs.items()}
 
