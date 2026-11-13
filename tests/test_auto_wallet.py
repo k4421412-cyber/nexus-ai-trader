@@ -101,6 +101,8 @@ def test_regime_adaptive_mode_uses_prior_candle_and_exits_on_regime_change(monke
             "bearish": "MACD crossover",
         },
     )
+    assert result["simulation_only"] is True
+    assert result["live_orders_sent"] is False
     assert result["strategy"] == "regime-adaptive"
     assert result["trade_log"][0]["entry_signal_index"] == 1
     assert result["trade_log"][0]["entry_index"] == 2
