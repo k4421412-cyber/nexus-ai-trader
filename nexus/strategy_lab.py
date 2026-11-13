@@ -133,6 +133,19 @@ def _indicators(df):
     rolling_high = high.rolling(14).max()
     rolling_low = low.rolling(14).min()
     x["williams_r"] = -100 * (rolling_high - close) / (rolling_high - rolling_low).replace(0, np.nan)
+    z_mean = close.rolling(20).mean()
+    z_std = close.rolling(20).std(ddof=0)
+    x["zscore"] = (close - z_mean) / z_std.replace(0, np.nan)
+
+    momentum = close.diff()
+    smoothed_momentum = momentum.ewm(span=25, adjust=False, min_periods=25).mean().ewm(
+        span=13, adjust=False, min_periods=13
+    ).mean()
+    smoothed_absolute = momentum.abs().ewm(span=25, adjust=False, min_periods=25).mean().ewm(
+        span=13, adjust=False, min_periods=13
+    ).mean()
+    x["tsi"] = 100 * smoothed_momentum / smoothed_absolute.replace(0, np.nan)
+    x["tsi_signal"] = x["tsi"].ewm(span=7, adjust=False, min_periods=7).mean()
     return x
 
 
@@ -211,6 +224,14 @@ def strategy_signals(df):
     specs["Williams %R"] = (
         (x.williams_r > -80) & (x.williams_r.shift(1) <= -80),
         x.williams_r > -20
+    )
+    specs["Z-score reversion"] = (
+        (x.zscore > -2) & (x.zscore.shift(1) <= -2),
+        x.zscore >= 0
+    )
+    specs["True Strength Index"] = (
+        (x.tsi > x.tsi_signal) & (x.tsi.shift(1) <= x.tsi_signal.shift(1)),
+        x.tsi < x.tsi_signal
     )
     return {name: (entry.fillna(False).astype(bool), exit_.fillna(False).astype(bool)) for name, (entry, exit_) in specs.items()}
 
