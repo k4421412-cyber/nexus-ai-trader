@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from nexus.strategy_lab import (
     classify_market_regime, compare_all, compare_by_regime, evaluate_by_condition, qualifies_strategy,
