@@ -27,6 +27,18 @@ def test_strategy_library_has_thirteen_boolean_signal_pairs():
         assert exit_.dtype == bool
 
 
+def test_all_strategy_signals_are_prefix_causal():
+    market = sample_market(600)
+    full = strategy_signals(market)
+    prefix = strategy_signals(market.iloc[:350].copy())
+    assert set(full) == set(prefix)
+    for name in full:
+        full_entry, full_exit = full[name]
+        prefix_entry, prefix_exit = prefix[name]
+        assert full_entry.iloc[:350].tolist() == prefix_entry.tolist(), name
+        assert full_exit.iloc[:350].tolist() == prefix_exit.tolist(), name
+
+
 def test_backtest_rejects_non_binary_and_non_finite_signals():
     market = pd.DataFrame({"open": [100.0, 101.0, 102.0], "close": [100.0, 101.0, 102.0]})
     for bad in (["False", False, True], [0, np.nan, 1], [0, 2, 1], np.zeros((3, 1))):
