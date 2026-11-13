@@ -31,6 +31,20 @@ def screen_regime_candidates(
         raise ValueError("min_trades must be a positive integer")
     if not math.isfinite(min_win_rate_pct) or not 0 <= min_win_rate_pct <= 100:
         raise ValueError("min_win_rate_pct must be between 0 and 100")
+    try:
+        fee, slippage, initial_balance = float(fee), float(slippage), float(initial_balance)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Fee, slippage and initial balance must be numeric") from exc
+    if not math.isfinite(fee) or not 0 <= fee < 1:
+        raise ValueError("fee must be finite and between 0 and 1")
+    if not math.isfinite(slippage) or not 0 <= slippage < 1:
+        raise ValueError("slippage must be finite and between 0 and 1")
+    if not math.isfinite(initial_balance) or initial_balance <= 0:
+        raise ValueError("initial_balance must be finite and positive")
+    if "timestamp" in market.columns:
+        timestamps = pd.to_numeric(market["timestamp"], errors="coerce")
+        if not timestamps.map(math.isfinite).all() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
+            raise ValueError("Market timestamps must be finite, unique and chronological")
 
     train_end = int(len(market) * fraction)
     training = market.iloc[:train_end].copy()
@@ -164,8 +178,12 @@ def validate_across_markets(
     """
     if not isinstance(markets, dict) or len(markets) < 2:
         raise ValueError("At least two separately identified market datasets are required")
+    if len(markets) > 12:
+        raise ValueError("At most 12 market datasets may be validated in one run")
     if any(not isinstance(key, str) or not key.strip() for key in markets):
         raise ValueError("Every market dataset needs a non-empty identifier")
+    if any(not isinstance(frame, pd.DataFrame) for frame in markets.values()):
+        raise ValueError("Every market dataset must be a pandas DataFrame")
     results = {}
     for market_id, frame in markets.items():
         results[market_id] = validate_regime_candidates(
