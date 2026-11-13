@@ -81,3 +81,32 @@ def test_cross_market_replication_requires_at_least_two_datasets():
 
     with pytest.raises(ValueError, match="two"):
         validate_across_markets({"BTC/USDT": sample_market()})
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"fee": -0.01},
+    {"fee": float("nan")},
+    {"slippage": 1.0},
+    {"initial_balance": 0},
+    {"initial_balance": float("inf")},
+])
+def test_screening_rejects_invalid_cost_and_balance_inputs(kwargs):
+    with pytest.raises(ValueError):
+        screen_regime_candidates(sample_market(), **kwargs)
+
+
+def test_cross_market_validation_caps_dataset_count_and_requires_frames():
+    from nexus.strategy_selection import validate_across_markets
+
+    with pytest.raises(ValueError, match="12"):
+        validate_across_markets({f"market-{i}": sample_market() for i in range(13)})
+    with pytest.raises(ValueError, match="DataFrame"):
+        validate_across_markets({"market-a": sample_market(), "market-b": "not-a-dataframe"})
+
+
+def test_screening_rejects_non_chronological_market_timestamps():
+    market = sample_market()
+    market["timestamp"] = np.arange(len(market), dtype=np.int64)
+    market.loc[len(market) - 1, "timestamp"] = 1
+    with pytest.raises(ValueError, match="chronological"):
+        screen_regime_candidates(market)
