@@ -8,6 +8,7 @@ from cryptography.fernet import Fernet
 
 from nexus.social_investment import SimulatedInvestmentPool
 from nexus.strategies import backtest
+from nexus.strategy_lab import strategy_signals
 
 
 def test_encrypted_ledger_persists_and_restores_state(tmp_path):
@@ -193,3 +194,23 @@ def test_encrypted_ledger_rejects_non_boolean_started_flag(tmp_path):
     path.write_bytes(cipher.encrypt(json.dumps(payload).encode()))
     with pytest.raises(ValueError, match="Invalid started flag"):
         SimulatedInvestmentPool(ledger_path=path, encryption_key=key)
+
+
+
+def test_all_strategy_indicators_handle_5000_candles_within_budget():
+    n = 5000
+    t = np.arange(n, dtype=float)
+    close = 100 + 0.002 * t + 2 * np.sin(t / 11) + 0.5 * np.sin(t / 2.3)
+    open_ = close * (1 + 0.0005 * np.sin(t / 5))
+    market = pd.DataFrame({
+        "open": open_,
+        "high": np.maximum(open_, close) * 1.003,
+        "low": np.minimum(open_, close) * 0.997,
+        "close": close,
+    })
+    started = time.perf_counter()
+    signals = strategy_signals(market)
+    elapsed = time.perf_counter() - started
+    assert len(signals) == 19
+    assert all(len(entry) == n and len(exit_) == n for entry, exit_ in signals.values())
+    assert elapsed < 10.0
