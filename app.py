@@ -299,6 +299,8 @@ elif page == "انتخاب‌گر هوشمند استراتژی":
     st.caption("یک استراتژی باید روی همه مجموعه‌داده‌های انتخاب‌شده در هر وضعیت بازار، مستقل از هم، از معیارها عبور کند.")
     screen_symbols = st.text_input("نمادها با ویرگول جدا شوند", "BTC/USDT, ETH/USDT", key="screen_symbols")
     if st.button("اعتبارسنجی مشترک نمادها", key="run_cross_market_screen"):
+        st.session_state.pop("strategy_cross_result", None)
+        st.session_state.pop("strategy_cross_meta", None)
         try:
             symbols = list(dict.fromkeys(item.strip() for item in screen_symbols.split(",") if item.strip()))
             if len(symbols) < 2:
