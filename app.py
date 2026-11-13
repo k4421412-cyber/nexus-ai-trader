@@ -185,6 +185,8 @@ elif page == "کیف پول خودکار (آزمایشی)":
             st.warning("اعتبارسنجی چندنمادی نامزد مشترکی را تأیید نکرده است؛ در حالت خودکار معامله‌ای انجام نمی‌شود.")
     if st.button("اجرای شبیه‌سازی تا هدف یا حد زیان", type="primary", use_container_width=True):
         try:
+            if strategy_mode != "انتخاب دستی" and not strategy_by_regime:
+                raise ValueError("هیچ استراتژی‌ای در اعتبارسنجی چندبازاری برای این دامنه تأیید نشده است؛ ابتدا اعتبارسنجی را اجرا کن.")
             with st.spinner("دریافت داده‌های عمومی و اجرای بازپخش معاملات مجازی..."):
                 market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
                 if strategy_by_regime:
