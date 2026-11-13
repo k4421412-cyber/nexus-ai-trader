@@ -3,7 +3,7 @@ import math
 
 import pandas as pd
 
-from nexus.strategy_lab import strategy_signals
+from nexus.strategy_lab import classify_market_regime, strategy_signals
 
 
 def _finite_number(value, name, *, minimum=None, maximum=None, strict_min=False):
@@ -31,6 +31,7 @@ def simulate_to_goal(
     fee_pct=0.1,
     slippage_pct=0.05,
     strategy_name="EMA 20/50 + RSI",
+    strategy_by_regime=None,
 ):
     """Replay one implemented strategy on completed candles.
 
@@ -66,15 +67,26 @@ def simulate_to_goal(
         raise ValueError("OHLC prices are inconsistent")
 
     available_signals = strategy_signals(data)
-    if strategy_name not in available_signals:
-        raise ValueError(f"Unknown or non-executable strategy: {strategy_name}")
-    entry_series, exit_series = available_signals[strategy_name]
-    entry_signals = entry_series.to_numpy(dtype=bool)
-    exit_signals = exit_series.to_numpy(dtype=bool)
+    regime_labels = None
+    if strategy_by_regime is not None:
+        valid_regimes = {"bullish", "bearish", "sideways"}
+        if not isinstance(strategy_by_regime, dict) or not strategy_by_regime:
+            raise ValueError("strategy_by_regime must be a non-empty regime-to-strategy mapping")
+        if not set(strategy_by_regime).issubset(valid_regimes):
+            raise ValueError("strategy_by_regime contains an unsupported market regime")
+        unknown = set(strategy_by_regime.values()).difference(available_signals)
+        if unknown:
+            raise ValueError(f"Unknown or non-executable strategy: {sorted(unknown)[0]}")
+        regime_labels = classify_market_regime(data).to_numpy(dtype=object)
+    else:
+        if strategy_name not in available_signals:
+            raise ValueError(f"Unknown or non-executable strategy: {strategy_name}")
     cash = initial
     units = 0.0
     entry_cost = 0.0
     entry_index = None
+    position_strategy = None
+    position_regime = None
     trades = []
     curve = [initial]
     status = "history_exhausted"
@@ -83,7 +95,7 @@ def simulate_to_goal(
     stop_index = len(data) - 1
 
     def close_position(price, index, reason):
-        nonlocal cash, units, entry_cost, entry_index
+        nonlocal cash, units, entry_cost, entry_index, position_strategy, position_regime
         if units <= 0:
             return
         fill = price * (1 - slippage)
@@ -99,19 +111,41 @@ def simulate_to_goal(
             "entry_signal_index": entry_index - 1 if entry_index is not None else None,
             "exit_index": index,
             "exit_reason": reason,
-            "strategy": strategy_name,
+            "strategy": position_strategy,
+            "entry_regime": position_regime,
         })
         units = 0.0
         entry_cost = 0.0
         entry_index = None
+        position_strategy = None
+        position_regime = None
 
     for i in range(1, len(data)):
         previous = data.iloc[i - 1]
         candle = data.iloc[i]
         execution_open = float(candle["open"])
         last_price = float(candle["close"])
-        should_exit = units > 0 and bool(exit_signals[i - 1])
-        should_enter = units == 0 and bool(entry_signals[i - 1]) and cash > 0
+        signal_regime = regime_labels[i - 1] if regime_labels is not None else None
+        candidate_strategy = (
+            strategy_by_regime.get(signal_regime)
+            if strategy_by_regime is not None else strategy_name
+        )
+        if strategy_by_regime is not None:
+            should_exit = units > 0 and (
+                signal_regime != position_regime
+                or bool(available_signals[position_strategy][1].iloc[i - 1])
+            )
+            should_enter = (
+                units == 0 and candidate_strategy is not None
+                and bool(available_signals[candidate_strategy][0].iloc[i - 1])
+                and cash > 0
+            )
+        else:
+            should_exit = units > 0 and bool(available_signals[position_strategy][1].iloc[i - 1])
+            should_enter = (
+                units == 0 and bool(available_signals[candidate_strategy][0].iloc[i - 1])
+                and cash > 0
+            )
 
         if should_exit:
             close_position(execution_open, i, "strategy_exit")
@@ -124,6 +158,8 @@ def simulate_to_goal(
                 units = allocation / total_cost_per_unit
                 entry_cost = units * total_cost_per_unit
                 entry_index = i
+                position_strategy = candidate_strategy
+                position_regime = signal_regime
                 cash -= entry_cost
 
         marked_equity = cash + units * last_price
@@ -150,7 +186,8 @@ def simulate_to_goal(
         "simulation_only": True,
         "live_orders_sent": False,
         "status": status,
-        "strategy": strategy_name,
+        "strategy": "regime-adaptive" if strategy_by_regime is not None else strategy_name,
+        "strategies_by_regime": dict(strategy_by_regime) if strategy_by_regime is not None else None,
         "initial_balance": round(initial, 10),
         "target_balance": round(target, 10),
         "stop_balance": round(stop_balance, 10),
