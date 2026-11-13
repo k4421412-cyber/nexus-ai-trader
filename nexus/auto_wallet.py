@@ -33,11 +33,12 @@ def simulate_to_goal(
     strategy_name="EMA 20/50 + RSI",
     strategy_by_regime=None,
 ):
-    """Replay one implemented strategy on completed candles.
+    """Replay one implemented strategy or a regime-specific strategy map.
 
+    In adaptive mode, the prior completed candle's regime chooses the method;
+    an open position is closed at the next open when that regime changes.
     Signals from candle i-1 execute at candle i open. The simulation is
-    long-only, applies fees/slippage on both sides, and stops at the target,
-    loss limit, or end of supplied history. No live exchange API is used.
+    long-only, applies fees/slippage on both sides, and never places live orders.
     """
     initial = _finite_number(initial_balance, "Initial balance", minimum=0, strict_min=True)
     target = _finite_number(target_balance, "Target balance", minimum=0, strict_min=True)
@@ -63,7 +64,7 @@ def simulate_to_goal(
         raise ValueError("OHLC prices must be finite")
     if (data[["open", "high", "low", "close"]] <= 0).any().any():
         raise ValueError("OHLC prices must be positive")
-    if (data["high"] < data["low"]).any() or (data["close"] > data["high"]).any() or (data["close"] < data["low"]).any():
+    if (data["high"] < data["low"]).any() or (data["open"] > data["high"]).any() or (data["open"] < data["low"]).any() or (data["close"] > data["high"]).any() or (data["close"] < data["low"]).any():
         raise ValueError("OHLC prices are inconsistent")
 
     available_signals = strategy_signals(data)
@@ -72,14 +73,19 @@ def simulate_to_goal(
         valid_regimes = {"bullish", "bearish", "sideways"}
         if not isinstance(strategy_by_regime, dict) or not strategy_by_regime:
             raise ValueError("strategy_by_regime must be a non-empty regime-to-strategy mapping")
+        if not all(isinstance(key, str) for key in strategy_by_regime):
+            raise ValueError("strategy_by_regime keys must be regime names")
         if not set(strategy_by_regime).issubset(valid_regimes):
             raise ValueError("strategy_by_regime contains an unsupported market regime")
+        if not all(isinstance(value, str) for value in strategy_by_regime.values()):
+            raise ValueError("strategy_by_regime values must be strategy names")
+        strategy_by_regime = dict(strategy_by_regime)
         unknown = set(strategy_by_regime.values()).difference(available_signals)
         if unknown:
             raise ValueError(f"Unknown or non-executable strategy: {sorted(unknown)[0]}")
         regime_labels = classify_market_regime(data).to_numpy(dtype=object)
     else:
-        if strategy_name not in available_signals:
+        if not isinstance(strategy_name, str) or strategy_name not in available_signals:
             raise ValueError(f"Unknown or non-executable strategy: {strategy_name}")
     cash = initial
     units = 0.0
@@ -121,7 +127,6 @@ def simulate_to_goal(
         position_regime = None
 
     for i in range(1, len(data)):
-        previous = data.iloc[i - 1]
         candle = data.iloc[i]
         execution_open = float(candle["open"])
         last_price = float(candle["close"])
