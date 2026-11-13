@@ -168,7 +168,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
             item.get("exchange") == exchange
             and item.get("timeframe") == timeframe
             and str(item.get("symbol", "")).upper() == symbol.strip().upper()
-            and cross_meta.get("candles") == candle_limit
+            and cross_meta.get("requested_candle_limit") == candle_limit
             for item in validated_datasets
         )
         replicated = cross_result.get("replicated_candidates_by_regime", {})
@@ -187,6 +187,14 @@ elif page == "کیف پول خودکار (آزمایشی)":
         try:
             with st.spinner("دریافت داده‌های عمومی و اجرای بازپخش معاملات مجازی..."):
                 market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
+                if strategy_by_regime:
+                    validated_key = f"{exchange}:{symbol}:{timeframe}"
+                    expected_count = cross_meta.get("candle_counts", {}).get(validated_key)
+                    if expected_count != len(market):
+                        raise ValueError(
+                            "تعداد کندل‌های بسته‌شده فعلی با داده اعتبارسنجی برابر نیست؛ "
+                            "برای جلوگیری از تعمیم نامعتبر، اعتبارسنجی چندبازاری را دوباره اجرا کن."
+                        )
                 result = simulate_to_goal(
                     market,
                     initial_balance=initial_balance,
@@ -332,15 +340,18 @@ elif page == "انتخاب‌گر هوشمند استراتژی":
                 for ex in cross_exchanges for tf in cross_timeframes for sym in symbols
             ]
             with st.spinner(f"دریافت و اعتبارسنجی {dataset_count} مجموعه‌داده مستقل..."):
-                market_sets = {
-                    f"{item['exchange']}:{item['symbol']}:{item['timeframe']}":
-                        fetch_ohlcv(item["exchange"], item["symbol"], item["timeframe"], screen_candles)
-                    for item in datasets
-                }
+                market_sets = {}
+                for item in datasets:
+                    market_key = f"{item['exchange']}:{item['symbol']}:{item['timeframe']}"
+                    market_sets[market_key] = fetch_ohlcv(
+                        item["exchange"], item["symbol"], item["timeframe"], screen_candles
+                    )
                 cross_result = validate_across_markets(market_sets)
             st.session_state["strategy_cross_result"] = cross_result
             st.session_state["strategy_cross_meta"] = {
-                "datasets": datasets, "candles": screen_candles,
+                "datasets": datasets,
+                "requested_candle_limit": screen_candles,
+                "candle_counts": {key: len(frame) for key, frame in market_sets.items()},
             }
         except Exception as exc:
             st.error(f"اعتبارسنجی چندبازاری ناموفق بود: {exc}")
