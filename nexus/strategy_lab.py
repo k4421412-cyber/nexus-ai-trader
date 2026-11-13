@@ -29,6 +29,12 @@ def _indicators(df):
         raise ValueError("OHLC data contains missing or non-finite values")
     if (close <= 0).any() or (high <= 0).any() or (low <= 0).any():
         raise ValueError("OHLC prices must be positive")
+    if (high < low).any() or (close > high).any() or (close < low).any():
+        raise ValueError("OHLC prices are inconsistent")
+    if "open" in x.columns:
+        open_ = pd.to_numeric(x["open"], errors="coerce")
+        if not np.isfinite(open_).all() or (open_ <= 0).any() or (open_ > high).any() or (open_ < low).any():
+            raise ValueError("OHLC open prices are invalid")
     x["ema9"] = close.ewm(span=9, adjust=False).mean()
     x["ema12"] = close.ewm(span=12, adjust=False).mean()
     x["ema21"] = close.ewm(span=21, adjust=False).mean()
@@ -56,7 +62,132 @@ def _indicators(df):
     low14 = low.rolling(14).min()
     high14 = high.rolling(14).max()
     x["stoch_k"] = 100 * (close - low14) / (high14 - low14).replace(0, np.nan)
-    x["atr"] = pd.concat([high-low, (high-close.shift()).abs(), (low-close.shift()).abs()], axis=1).max(axis=1).rolling(14).mean()
+    true_range = pd.concat([high-low, (high-close.shift()).abs(), (low-close.shift()).abs()], axis=1).max(axis=1)
+    x["atr"] = true_range.rolling(14).mean()
+    atr_wilder = true_range.ewm(alpha=1/14, adjust=False, min_periods=14).mean()
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    x["plus_di"] = 100 * plus_dm.ewm(alpha=1/14, adjust=False, min_periods=14).mean() / atr_wilder.replace(0, np.nan)
+    x["minus_di"] = 100 * minus_dm.ewm(alpha=1/14, adjust=False, min_periods=14).mean() / atr_wilder.replace(0, np.nan)
+    dx = 100 * (x["plus_di"] - x["minus_di"]).abs() / (x["plus_di"] + x["minus_di"]).replace(0, np.nan)
+    x["adx"] = dx.ewm(alpha=1/14, adjust=False, min_periods=14).mean()
+    x["keltner_mid"] = x["ema20"]
+    x["keltner_upper"] = x["keltner_mid"] + 2 * x["atr"]
+    x["keltner_lower"] = x["keltner_mid"] - 2 * x["atr"]
+
+    # Causal Supertrend: each band/state uses only current and prior candles.
+    midpoint = (high + low) / 2
+    basic_upper = midpoint + 3 * atr_wilder
+    basic_lower = midpoint - 3 * atr_wilder
+    final_upper = np.full(len(x), np.nan)
+    final_lower = np.full(len(x), np.nan)
+    direction = np.zeros(len(x), dtype=int)
+    first_valid = np.flatnonzero(atr_wilder.notna().to_numpy())
+    if len(first_valid):
+        start = int(first_valid[0])
+        final_upper[start] = basic_upper.iloc[start]
+        final_lower[start] = basic_lower.iloc[start]
+        direction[start] = 1
+        for i in range(start + 1, len(x)):
+            previous_upper = final_upper[i - 1]
+            previous_lower = final_lower[i - 1]
+            final_upper[i] = (
+                basic_upper.iloc[i]
+                if basic_upper.iloc[i] < previous_upper or close.iloc[i - 1] > previous_upper
+                else previous_upper
+            )
+            final_lower[i] = (
+                basic_lower.iloc[i]
+                if basic_lower.iloc[i] > previous_lower or close.iloc[i - 1] < previous_lower
+                else previous_lower
+            )
+            if direction[i - 1] < 0 and close.iloc[i] > final_upper[i]:
+                direction[i] = 1
+            elif direction[i - 1] > 0 and close.iloc[i] < final_lower[i]:
+                direction[i] = -1
+            else:
+                direction[i] = direction[i - 1]
+    x["supertrend_direction"] = direction
+    x["supertrend"] = np.where(direction > 0, final_lower, final_upper)
+
+    # Ichimoku cloud values are shifted forward on charts; shift them back
+    # here to compare only the cloud that was already visible at each candle.
+    tenkan = (high.rolling(9).max() + low.rolling(9).min()) / 2
+    kijun = (high.rolling(26).max() + low.rolling(26).min()) / 2
+    span_a_visible = ((tenkan + kijun) / 2).shift(26)
+    span_b_visible = ((high.rolling(52).max() + low.rolling(52).min()) / 2).shift(26)
+    x["ichimoku_tenkan"] = tenkan
+    x["ichimoku_kijun"] = kijun
+    x["ichimoku_cloud_top"] = pd.concat([span_a_visible, span_b_visible], axis=1).max(axis=1, skipna=False)
+    x["ichimoku_cloud_bottom"] = pd.concat([span_a_visible, span_b_visible], axis=1).min(axis=1, skipna=False)
+    x["ichimoku_chikou_confirm"] = close > high.shift(26)
+
+    typical_price = (high + low + close) / 3
+    typical_mean = typical_price.rolling(20).mean()
+    mean_deviation = typical_price.rolling(20).apply(
+        lambda values: np.mean(np.abs(values - np.mean(values))), raw=True
+    )
+    x["cci"] = (typical_price - typical_mean) / (0.015 * mean_deviation.replace(0, np.nan))
+    rolling_high = high.rolling(14).max()
+    rolling_low = low.rolling(14).min()
+    x["williams_r"] = -100 * (rolling_high - close) / (rolling_high - rolling_low).replace(0, np.nan)
+    z_mean = close.rolling(20).mean()
+    z_std = close.rolling(20).std(ddof=0)
+    x["zscore"] = (close - z_mean) / z_std.replace(0, np.nan)
+
+    momentum = close.diff()
+    smoothed_momentum = momentum.ewm(span=25, adjust=False, min_periods=25).mean().ewm(
+        span=13, adjust=False, min_periods=13
+    ).mean()
+    smoothed_absolute = momentum.abs().ewm(span=25, adjust=False, min_periods=25).mean().ewm(
+        span=13, adjust=False, min_periods=13
+    ).mean()
+    x["tsi"] = 100 * smoothed_momentum / smoothed_absolute.replace(0, np.nan)
+    x["tsi_signal"] = x["tsi"].ewm(span=7, adjust=False, min_periods=7).mean()
+
+    # Parabolic SAR is calculated sequentially so no future candle can
+    # influence a prior stop or direction state.
+    psar = np.full(len(x), np.nan)
+    psar_direction = np.zeros(len(x), dtype=int)
+    if len(x) >= 2:
+        rising = close.iloc[1] >= close.iloc[0]
+        extreme = high.iloc[0] if rising else low.iloc[0]
+        psar[0] = low.iloc[0] if rising else high.iloc[0]
+        psar_direction[0] = 1 if rising else -1
+        acceleration = 0.02
+        for i in range(1, len(x)):
+            previous_sar = psar[i - 1]
+            if rising:
+                candidate = previous_sar + acceleration * (extreme - previous_sar)
+                candidate = min(candidate, low.iloc[i - 1], low.iloc[max(0, i - 2)])
+                if low.iloc[i] < candidate:
+                    rising = False
+                    psar[i] = extreme
+                    extreme = low.iloc[i]
+                    acceleration = 0.02
+                else:
+                    psar[i] = candidate
+                    if high.iloc[i] > extreme:
+                        extreme = high.iloc[i]
+                        acceleration = min(0.2, acceleration + 0.02)
+            else:
+                candidate = previous_sar + acceleration * (extreme - previous_sar)
+                candidate = max(candidate, high.iloc[i - 1], high.iloc[max(0, i - 2)])
+                if high.iloc[i] > candidate:
+                    rising = True
+                    psar[i] = extreme
+                    extreme = high.iloc[i]
+                    acceleration = 0.02
+                else:
+                    psar[i] = candidate
+                    if low.iloc[i] < extreme:
+                        extreme = low.iloc[i]
+                        acceleration = min(0.2, acceleration + 0.02)
+            psar_direction[i] = 1 if rising else -1
+    x["parabolic_sar"] = psar
+    x["parabolic_sar_direction"] = psar_direction
     return x
 
 
@@ -109,6 +240,45 @@ def strategy_signals(df):
         (x.ema20 > x.ema50) & (x.macd > x.macd_signal) & (x.macd.shift(1) <= x.macd_signal.shift(1)),
         (x.ema20 < x.ema50) | (x.macd < x.macd_signal)
     )
+    specs["ADX + Directional Movement"] = (
+        (x.plus_di > x.minus_di) & (x.plus_di.shift(1) <= x.minus_di.shift(1)) & (x.adx >= 20),
+        (x.minus_di > x.plus_di) | (x.adx < 15)
+    )
+    specs["Keltner channel breakout"] = (
+        (c > x.keltner_upper) & (c.shift(1) <= x.keltner_upper.shift(1)),
+        c < x.keltner_mid
+    )
+    specs["Supertrend"] = (
+        (x.supertrend_direction > 0) & (x.supertrend_direction.shift(1) < 0),
+        (x.supertrend_direction < 0) & (x.supertrend_direction.shift(1) > 0)
+    )
+    specs["Ichimoku Cloud"] = (
+        (c > x.ichimoku_cloud_top)
+        & (x.ichimoku_tenkan > x.ichimoku_kijun)
+        & (x.ichimoku_tenkan.shift(1) <= x.ichimoku_kijun.shift(1))
+        & x.ichimoku_chikou_confirm,
+        (c < x.ichimoku_cloud_bottom) | (x.ichimoku_tenkan < x.ichimoku_kijun)
+    )
+    specs["CCI reversal"] = (
+        (x.cci > -100) & (x.cci.shift(1) <= -100),
+        x.cci > 100
+    )
+    specs["Williams %R"] = (
+        (x.williams_r > -80) & (x.williams_r.shift(1) <= -80),
+        x.williams_r > -20
+    )
+    specs["Z-score reversion"] = (
+        (x.zscore > -2) & (x.zscore.shift(1) <= -2),
+        x.zscore >= 0
+    )
+    specs["True Strength Index"] = (
+        (x.tsi > x.tsi_signal) & (x.tsi.shift(1) <= x.tsi_signal.shift(1)),
+        x.tsi < x.tsi_signal
+    )
+    specs["Parabolic SAR"] = (
+        (x.parabolic_sar_direction > 0) & (x.parabolic_sar_direction.shift(1) < 0),
+        (x.parabolic_sar_direction < 0) & (x.parabolic_sar_direction.shift(1) > 0)
+    )
     return {name: (entry.fillna(False).astype(bool), exit_.fillna(False).astype(bool)) for name, (entry, exit_) in specs.items()}
 
 
@@ -132,6 +302,19 @@ def run_backtest(df, entry, exit_, fee=0.001, slippage=0.0005, initial_balance=1
     cl = pd.to_numeric(market.close, errors="coerce").to_numpy(dtype=float)
     if not np.isfinite(op).all() or not np.isfinite(cl).all() or (op <= 0).any() or (cl <= 0).any():
         raise ValueError("Invalid OHLC prices")
+    if {"high", "low"}.issubset(market.columns):
+        high = pd.to_numeric(market.high, errors="coerce").to_numpy(dtype=float)
+        low = pd.to_numeric(market.low, errors="coerce").to_numpy(dtype=float)
+        if not np.isfinite(high).all() or not np.isfinite(low).all():
+            raise ValueError("Invalid OHLC high/low prices")
+        if (high <= 0).any() or (low <= 0).any():
+            raise ValueError("OHLC high/low prices must be positive")
+        if (high < np.maximum.reduce([op, cl, low])).any() or (low > np.minimum(op, cl)).any():
+            raise ValueError("OHLC prices are inconsistent")
+    if "timestamp" in market.columns:
+        timestamps = pd.to_numeric(market.timestamp, errors="coerce").to_numpy(dtype=float)
+        if not np.isfinite(timestamps).all() or pd.Series(timestamps).duplicated().any() or not pd.Series(timestamps).is_monotonic_increasing:
+            raise ValueError("Candle timestamps must be finite, unique and chronological")
     cash, units, cost = initial_balance, 0.0, 0.0
     trades, equity = [], [initial_balance]
     entry_i = None
@@ -226,6 +409,16 @@ def evaluate_by_condition(condition_metrics, min_trades=100, min_win_rate_pct=80
 
 def classify_market_regime(df, adx_threshold=20.0):
     """Classify each candle using trailing-only EMA trend and ADX information."""
+    if not isinstance(df, pd.DataFrame) or not {"close", "high", "low"}.issubset(df.columns):
+        raise ValueError("Market data must contain close, high and low columns")
+    if isinstance(adx_threshold, bool):
+        raise ValueError("ADX threshold must be a finite number between 0 and 100")
+    try:
+        adx_threshold = float(adx_threshold)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("ADX threshold must be a finite number between 0 and 100") from exc
+    if not math.isfinite(adx_threshold) or not 0 <= adx_threshold <= 100:
+        raise ValueError("ADX threshold must be a finite number between 0 and 100")
     x = df.copy()
     close = pd.to_numeric(x["close"], errors="coerce")
     high = pd.to_numeric(x["high"], errors="coerce")
@@ -234,6 +427,12 @@ def classify_market_regime(df, adx_threshold=20.0):
         raise ValueError("OHLC data contains missing or non-finite values")
     if (close <= 0).any() or (high <= 0).any() or (low <= 0).any():
         raise ValueError("OHLC prices must be positive")
+    if (high < low).any() or (close > high).any() or (close < low).any():
+        raise ValueError("OHLC prices are inconsistent")
+    if "open" in x.columns:
+        open_ = pd.to_numeric(x["open"], errors="coerce")
+        if not np.isfinite(open_).all() or (open_ <= 0).any() or (open_ > high).any() or (open_ < low).any():
+            raise ValueError("OHLC open prices are invalid")
     ema50 = close.ewm(span=50, adjust=False, min_periods=50).mean()
     ema200 = close.ewm(span=200, adjust=False, min_periods=200).mean()
     up_move = high.diff()

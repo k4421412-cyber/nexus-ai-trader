@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from nexus.strategy_lab import (
     classify_market_regime, compare_all, compare_by_regime, evaluate_by_condition, qualifies_strategy,
@@ -16,15 +17,35 @@ def sample_market(n=500):
     return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close})
 
 
-def test_strategy_library_has_eleven_boolean_signal_pairs():
+def test_strategy_library_has_twenty_boolean_signal_pairs():
     market = sample_market()
     signals = strategy_signals(market)
-    assert len(signals) == 11
+    assert len(signals) == 20
     for entry, exit_ in signals.values():
         assert len(entry) == len(market)
         assert len(exit_) == len(market)
         assert entry.dtype == bool
         assert exit_.dtype == bool
+
+
+def test_parabolic_sar_generates_causal_direction_reversals():
+    signals = strategy_signals(sample_market(500))
+    entry, exit_ = signals["Parabolic SAR"]
+    assert entry.any()
+    assert exit_.any()
+    assert not (entry & exit_).any()
+
+
+def test_all_strategy_signals_are_prefix_causal():
+    market = sample_market(600)
+    full = strategy_signals(market)
+    prefix = strategy_signals(market.iloc[:350].copy())
+    assert set(full) == set(prefix)
+    for name in full:
+        full_entry, full_exit = full[name]
+        prefix_entry, prefix_exit = prefix[name]
+        assert full_entry.iloc[:350].tolist() == prefix_entry.tolist(), name
+        assert full_exit.iloc[:350].tolist() == prefix_exit.tolist(), name
 
 
 def test_backtest_rejects_non_binary_and_non_finite_signals():
@@ -71,7 +92,7 @@ def test_backtest_force_closes_open_position_at_final_candle():
 
 def test_comparison_returns_every_strategy_and_does_not_fake_qualification():
     results = compare_all(sample_market(), fee=0.001, slippage=0.0005)
-    assert len(results) == 11
+    assert len(results) == 20
     assert all("qualifies" in row and "trades" in row for row in results)
     assert all(row["qualifies"] is False for row in results if row["trades"] < 100)
 
@@ -141,9 +162,9 @@ def test_regime_classifier_marks_warmup_as_insufficient_data():
     assert labels.iloc[199:].isin(["bullish", "bearish", "sideways"]).all()
 
 
-def test_all_eleven_strategies_are_evaluated_separately_by_regime():
+def test_all_twenty_strategies_are_evaluated_separately_by_regime():
     results = compare_by_regime(sample_market(600), fee=0.001, slippage=0.0005)
-    assert len(results) == 11
+    assert len(results) == 20
     expected = {"bullish", "bearish", "sideways"}
     for row in results:
         assert set(row["by_regime"]) == expected
@@ -173,3 +194,34 @@ def test_forced_exit_deducts_final_fee_and_slippage_from_realized_metrics():
         (expected_balance / 1000 - 1) * 100,
     )
     assert result["equity_curve"][-1] == result["liquidation_balance"]
+
+
+
+def test_backtest_rejects_inconsistent_ohlc_and_non_chronological_timestamps():
+    market = pd.DataFrame({
+        "timestamp": [1000, 2000, 3000],
+        "open": [100.0, 101.0, 102.0],
+        "high": [101.0, 102.0, 103.0],
+        "low": [99.0, 100.0, 101.0],
+        "close": [100.0, 101.0, 102.0],
+    })
+    bad_ohlc = market.copy()
+    bad_ohlc.loc[1, "high"] = 99.0
+    with pytest.raises(ValueError, match="inconsistent"):
+        run_backtest(bad_ohlc, [False] * 3, [False] * 3)
+    bad_time = market.copy()
+    bad_time.loc[2, "timestamp"] = 1500
+    with pytest.raises(ValueError, match="chronological"):
+        run_backtest(bad_time, [False] * 3, [False] * 3)
+
+
+def test_regime_classifier_rejects_invalid_threshold_and_inconsistent_ohlc():
+    market = sample_market(250)
+    with pytest.raises(ValueError, match="ADX threshold"):
+        classify_market_regime(market, adx_threshold=float("nan"))
+    with pytest.raises(ValueError, match="ADX threshold"):
+        classify_market_regime(market, adx_threshold=101)
+    invalid = market.copy()
+    invalid.loc[10, "open"] = invalid.loc[10, "high"] * 2
+    with pytest.raises(ValueError, match="open prices"):
+        classify_market_regime(invalid)

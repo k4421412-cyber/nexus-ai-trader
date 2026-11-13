@@ -22,7 +22,7 @@ def test_walk_forward_uses_chronological_non_overlapping_test_folds():
         "never_in": np.zeros(len(market), dtype=bool),
     }
     result = walk_forward_evaluate(
-        market, candidates, train_size=6, test_size=3, fee=0, slippage=0
+        market, candidates, train_size=6, test_size=3, fee=0, slippage=0, min_trades=1
     )
     assert result["simulation_only"] is True
     assert result["fold_count"] == 2
@@ -41,12 +41,12 @@ def test_walk_forward_first_fold_is_not_influenced_by_future_test_data():
         "never_in": np.zeros(len(market), dtype=bool),
     }
     baseline = walk_forward_evaluate(
-        market, candidates, train_size=6, test_size=3, fee=0, slippage=0
+        market, candidates, train_size=6, test_size=3, fee=0, slippage=0, min_trades=1
     )
     changed_future = market.copy()
     changed_future.loc[9:, ["open", "close", "ema20", "ema50"]] *= 4
     changed = walk_forward_evaluate(
-        changed_future, candidates, train_size=6, test_size=3, fee=0, slippage=0
+        changed_future, candidates, train_size=6, test_size=3, fee=0, slippage=0, min_trades=1
     )
     assert baseline["folds"][0]["training_scores"] == changed["folds"][0]["training_scores"]
     assert baseline["folds"][0]["selected_strategy"] == changed["folds"][0]["selected_strategy"]
@@ -82,13 +82,13 @@ def test_walk_forward_rejects_empty_candidates_and_short_history():
 
 def test_walk_forward_uses_entry_and_exit_signals_for_strategy_candidates():
     market = pd.DataFrame({
-        "open": [100.0, 100.0, 100.0, 100.0, 110.0, 110.0, 110.0, 110.0],
-        "close": [100.0, 100.0, 100.0, 100.0, 110.0, 110.0, 110.0, 110.0],
+        "open": [100.0, 100.0, 100.0, 105.0, 110.0, 110.0, 110.0, 110.0],
+        "close": [100.0, 100.0, 100.0, 105.0, 110.0, 110.0, 110.0, 110.0],
         "ema20": [100.0] * 8,
         "ema50": [100.0] * 8,
     })
-    entry = np.array([False, False, False, True, False, False, False, False])
-    exit_ = np.array([False, False, False, False, False, True, False, False])
+    entry = np.array([False, True, False, True, False, False, False, False])
+    exit_ = np.array([False, False, True, False, False, True, False, False])
     result = walk_forward_evaluate(
         market,
         {"paired_strategy": (entry, exit_)},
@@ -96,6 +96,7 @@ def test_walk_forward_uses_entry_and_exit_signals_for_strategy_candidates():
         test_size=4,
         fee=0,
         slippage=0,
+        min_trades=1,
     )
     assert result["fold_count"] == 1
     assert result["folds"][0]["selected_strategy"] == "paired_strategy"
@@ -128,3 +129,29 @@ def test_walk_forward_rejects_non_finite_numeric_signal_values():
     bad[2] = np.nan
     with pytest.raises(ValueError, match="only booleans"):
         walk_forward_evaluate(market, {"bad": bad}, train_size=6, test_size=3)
+
+
+
+def test_walk_forward_keeps_flat_when_no_training_candidate_passes_hard_gate():
+    market = market_data()
+    result = walk_forward_evaluate(
+        market,
+        {"always_in": np.ones(len(market), dtype=bool)},
+        train_size=6,
+        test_size=3,
+        fee=0,
+        slippage=0,
+    )
+    assert result["minimum_closed_trades"] == 100
+    assert all(fold["selected_strategy"] is None for fold in result["folds"])
+    assert all(fold["eligible_candidates"] == [] for fold in result["folds"])
+    assert all(fold["test_result"]["trades"] == 0 for fold in result["folds"])
+
+
+def test_walk_forward_rejects_invalid_hard_gate_parameters():
+    market = market_data()
+    candidate = {"always_in": np.ones(len(market), dtype=bool)}
+    with pytest.raises(ValueError, match="min_trades"):
+        walk_forward_evaluate(market, candidate, train_size=6, test_size=3, min_trades=0)
+    with pytest.raises(ValueError, match="min_win_rate_pct"):
+        walk_forward_evaluate(market, candidate, train_size=6, test_size=3, min_win_rate_pct=101)

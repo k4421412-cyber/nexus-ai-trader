@@ -7,7 +7,7 @@ This plan applies to the simulation-only MVP. Passing CI is evidence for the cov
 - Core correctness: OHLCV validation, indicators, signal input validation, paper-wallet accounting and failure atomicity.
 - Financial scenarios: fees, slippage, open-position liquidation estimate, drawdown, exposure, expectancy, profit factor, profit/loss allocation, high-water mark and 100 seeded randomized backtest scenarios.
 - Persistence/security: Fernet authenticated encryption, wrong-key rejection, ciphertext tamper rejection, event hash-chain validation, file-write failure rollback and explicit key/path configuration.
-- Performance: deterministic 5,000-candle backtest budget in CI. This is a regression guard, not a production load test.
+- Performance: deterministic 5,000-candle backtest and full 20-strategy indicator-generation budgets in CI. These are regression guards, not production load tests.
 - UI/mobile smoke: Streamlit AppTest on every navigation page and responsive CSS rules for narrow screens, readable metrics, horizontally scrollable data tables and touch-sized buttons.
 - Static security: Bandit scan and dependency vulnerability audit in GitHub Actions.
 
@@ -37,7 +37,7 @@ Test at 320px, 375px, 390px and 430px viewport widths on Android Chrome and iOS 
 - metric labels and long symbols wrap without clipping;
 - primary controls are at least 44px high;
 - Persian RTL and mixed Latin ticker/address text remain legible;
-- all nine pages render without exceptions.
+- all twelve pages render without exceptions, including the strategy knowledge and regime-specific selection/holdout validation pages.
 
 Streamlit AppTest and Playwright browser-viewport checks run in CI; physical-device acceptance on Android Chrome and iOS Safari remains a manual release check.
 
@@ -53,7 +53,7 @@ No live orders, real deposits, withdrawals, private keys or seed phrases are sup
 - Cross-process file locking and reload-before-write prevent concurrent Streamlit sessions from silently overwriting one another's ledger updates on a single shared filesystem.
 - Ledger reload reconciles investor contributions, investor P/L, pool totals, finite balances and high-water mark before accepting the state.
 - Simulated partial withdrawals are recorded as ledger events, limited to each investor's available virtual balance, and subsequent simulated P/L is allocated using remaining virtual balances.
-- Walk-forward evaluation selects among supplied causal strategy signal streams using only each past training window, then evaluates the selected candidate on the next untouched test window. Each fold starts with a separate virtual balance; fold returns are not compounded.
+- Walk-forward evaluation selects only candidates that pass the training hard gate (at least 100 closed trades, at least 80% win rate, positive net return, positive expectancy and Profit Factor above 1); it evaluates the selected candidate on the next untouched test window. If no candidate passes, the fold remains flat. Each fold starts with a separate virtual balance; fold returns are not compounded.
 - Browser-level responsive checks run at 320, 375, 390 and 430 CSS pixels across the navigation pages. This is browser emulation, not a substitute for physical Android/iOS device acceptance.
 - A CI concurrency test creates multiple ledger clients and submits simultaneous virtual allocations to detect lost updates.
 

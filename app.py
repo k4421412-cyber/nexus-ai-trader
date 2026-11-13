@@ -8,6 +8,10 @@ from nexus.strategy_lab import compare_all, compare_by_regime, strategy_signals
 from nexus.evaluation import walk_forward_evaluate
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
+from nexus.auto_wallet import simulate_to_goal
+from nexus.strategy_knowledge import list_strategies, recommend_strategies
+from nexus.regime import detect_market_regime
+from nexus.strategy_selection import validate_regime_candidates, validate_across_markets
 from nexus.knowledge import save_note, load_notes
 from nexus.social_investment import SimulatedInvestmentPool
 
@@ -63,7 +67,7 @@ st.markdown("""
   <div class="nexus-sub">نسخه آزمایشی 0.3 · تحلیل بازار و معاملات مجازی</div>
 </div>
 """, unsafe_allow_html=True)
-pages = ["داشبورد", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
+pages = ["داشبورد", "کیف پول خودکار (آزمایشی)", "دانشنامه استراتژی‌ها", "انتخاب‌گر هوشمند استراتژی", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
 
@@ -119,6 +123,252 @@ if page == "داشبورد":
     ]:
         st.markdown('<div class="nexus-panel"><b>' + title + '</b><div class="nexus-muted">' + description + '</div></div>', unsafe_allow_html=True)
 
+elif page == "کیف پول خودکار (آزمایشی)":
+    st.subheader("کیف پول اختصاصی و معامله خودکار — فقط شبیه‌سازی")
+    st.warning(
+        "این بخش در حال حاضر فقط با موجودی مجازی و بازپخش کندل‌های تاریخی کار می‌کند. "
+        "هیچ کیف پول واقعی، API صرافی، واریز/برداشت یا سفارش زنده‌ای متصل نیست."
+    )
+    st.markdown("### تنظیم هدف و محافظت از سرمایه")
+    c1, c2 = st.columns(2)
+    initial_balance = c1.number_input("سرمایه شروع مجازی (USDT)", min_value=0.01, value=1.0, step=0.1, key="auto_wallet_initial")
+    target_balance = c2.number_input("هدف موجودی (USDT)", min_value=0.02, value=5.0, step=0.5, key="auto_wallet_target")
+    c3, c4 = st.columns(2)
+    max_loss_pct = c3.number_input("حد توقف زیان (%)", min_value=1.0, max_value=50.0, value=20.0, step=1.0, key="auto_wallet_loss")
+    max_position_pct = c4.number_input("حداکثر سهم هر موقعیت از حساب (%)", min_value=1.0, max_value=100.0, value=25.0, step=5.0, key="auto_wallet_position")
+    c5, c6 = st.columns(2)
+    fee_pct = c5.number_input("کارمزد هر سمت (%)", min_value=0.0, max_value=5.0, value=0.1, step=0.01, key="auto_wallet_fee")
+    slippage_pct = c6.number_input("لغزش هر سمت (%)", min_value=0.0, max_value=5.0, value=0.05, step=0.01, key="auto_wallet_slippage")
+    st.markdown("### انتخاب بازار برای بازپخش آزمایشی")
+    c7, c8, c9 = st.columns(3)
+    exchange = c7.selectbox("منبع داده عمومی", ["okx", "binance", "bybit"], key="auto_wallet_exchange")
+    symbol = c8.text_input("نماد", "BTC/USDT", key="auto_wallet_symbol")
+    timeframe = c9.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_wallet_timeframe")
+    candle_limit = st.slider("تعداد کندل بسته‌شده", 100, 1000, 1000, 100, key="auto_wallet_candles")
+    strategy_mode = st.radio(
+        "روش انتخاب استراتژی",
+        ["انتخاب دستی", "انتخاب خودکار بر اساس اعتبارسنجی چندنمادی"],
+        horizontal=True,
+        key="auto_wallet_strategy_mode",
+    )
+    executable_names = [item["name"] for item in list_strategies() if item["implemented"]]
+    strategy_by_regime = None
+    strategy_name = "EMA 20/50 + RSI"
+    if strategy_mode == "انتخاب دستی":
+        strategy_name = st.selectbox(
+            "استراتژی برای شبیه‌سازی", executable_names,
+            index=executable_names.index("EMA 20/50 + RSI"),
+            key="auto_wallet_strategy",
+        )
+    else:
+        cross_result = st.session_state.get("strategy_cross_result", {})
+        cross_meta = st.session_state.get("strategy_cross_meta", {})
+        validated_datasets = cross_meta.get("datasets", [])
+        same_validation_scope = any(
+            item.get("exchange") == exchange
+            and item.get("timeframe") == timeframe
+            and str(item.get("symbol", "")).upper() == symbol.strip().upper()
+            and cross_meta.get("requested_candle_limit") == candle_limit
+            for item in validated_datasets
+        )
+        replicated = cross_result.get("replicated_candidates_by_regime", {})
+        strategy_by_regime = {
+            regime: names[0] for regime, names in replicated.items() if names
+        } if same_validation_scope else {}
+        if strategy_by_regime:
+            st.info("ربات فقط بین نامزدهایی انتخاب می‌کند که در اعتبارسنجی مستقلِ چندنمادی عبور کرده‌اند. این انتخاب فقط برای شبیه‌سازی است.")
+            st.caption(f"دامنه اعتبارسنجی شامل {len(validated_datasets)} ترکیب صرافی/نماد/تایم‌فریم است؛ بازار فعلی در این مجموعه وجود دارد.")
+            st.write("نامزدهای فعال برای بازپخش:", strategy_by_regime)
+        elif not same_validation_scope:
+            st.warning("برای جلوگیری از تعمیم بی‌پشتوانه، انتخاب خودکار فقط روی همان صرافی، نماد، تایم‌فریم و تعداد کندلی فعال می‌شود که در اعتبارسنجی چندبازاری حضور داشته باشد. اعتبارسنجی را با نماد فعلی و دست‌کم یک نماد دیگر تکرار کن.")
+        else:
+            st.warning("اعتبارسنجی چندنمادی نامزد مشترکی را تأیید نکرده است؛ در حالت خودکار معامله‌ای انجام نمی‌شود.")
+    if st.button("اجرای شبیه‌سازی تا هدف یا حد زیان", type="primary", use_container_width=True):
+        try:
+            if strategy_mode != "انتخاب دستی" and not strategy_by_regime:
+                raise ValueError("هیچ استراتژی‌ای در اعتبارسنجی چندبازاری برای این دامنه تأیید نشده است؛ ابتدا اعتبارسنجی را اجرا کن.")
+            with st.spinner("دریافت داده‌های عمومی و اجرای بازپخش معاملات مجازی..."):
+                market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
+                if strategy_by_regime:
+                    validated_key = f"{exchange}:{symbol}:{timeframe}"
+                    expected_count = cross_meta.get("candle_counts", {}).get(validated_key)
+                    if expected_count != len(market):
+                        raise ValueError(
+                            "تعداد کندل‌های بسته‌شده فعلی با داده اعتبارسنجی برابر نیست؛ "
+                            "برای جلوگیری از تعمیم نامعتبر، اعتبارسنجی چندبازاری را دوباره اجرا کن."
+                        )
+                result = simulate_to_goal(
+                    market,
+                    initial_balance=initial_balance,
+                    target_balance=target_balance,
+                    max_loss_pct=max_loss_pct,
+                    max_position_pct=max_position_pct,
+                    fee_pct=fee_pct,
+                    slippage_pct=slippage_pct,
+                    strategy_name=strategy_name,
+                    strategy_by_regime=strategy_by_regime,
+                )
+            st.session_state["auto_wallet_result"] = result
+            st.session_state["auto_wallet_meta"] = {
+                "exchange": exchange, "symbol": symbol, "timeframe": timeframe,
+                "candles": len(market), "strategy": result["strategy"],
+            }
+        except Exception as exc:
+            st.error(f"اجرای شبیه‌سازی ناموفق بود: {exc}")
+    result = st.session_state.get("auto_wallet_result")
+    if result:
+        meta = st.session_state.get("auto_wallet_meta", {})
+        st.markdown("### نتیجه آخرین اجرا")
+        if result["status"] == "target_reached":
+            st.success("هدف موجودی در شبیه‌سازی لمس و پس از هزینه خروج نیز حفظ شد.")
+        elif result["status"] == "target_touched_before_exit_costs":
+            st.warning("ارزش لحظه‌ای به هدف رسید، اما پس از هزینه خروج موجودی نهایی کمتر از هدف شد.")
+        elif result["status"] == "risk_limit_reached":
+            st.error("حد توقف زیان فعال شد و شبیه‌سازی متوقف شد.")
+        else:
+            st.info("داده‌های تاریخی تمام شد؛ این نتیجه به معنی رسیدن به هدف نیست.")
+        a, b, c, d, e = st.columns(5)
+        a.metric("موجودی نهایی مجازی", f'{result["final_balance"]:.4f} USDT')
+        b.metric("هدف", f'{result["target_balance"]:.4f} USDT')
+        c.metric("سود/زیان خالص", f'{result["net_pnl"]:+.4f} USDT')
+        d.metric("بیشترین افت سرمایه", f'{result["max_drawdown_pct"]:.2f}%')
+        e.metric("تعداد معاملات", result["trades"])
+        st.caption(f'بازار: {meta.get("exchange")} · {meta.get("symbol")} · {meta.get("timeframe")} · استراتژی: {meta.get("strategy")} · {meta.get("candles")} کندل بسته‌شده')
+        curve = pd.DataFrame({
+            "شماره کندل": range(len(result["equity_curve"])),
+            "ارزش حساب مجازی (USDT)": result["equity_curve"],
+        }).set_index("شماره کندل")
+        st.line_chart(curve, use_container_width=True)
+        st.caption("بیشترین افت سرمایه از ارزش پایان هر کندل محاسبه می‌شود؛ افت داخل کندل، گپ قیمت یا لغزش بیشتر می‌تواند زیان واقعی را افزایش دهد.")
+        if result["trade_log"]:
+            st.dataframe(pd.DataFrame(result["trade_log"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("در این بازه هیچ معامله‌ای با شرط استراتژی انجام نشد.")
+        st.caption(
+            "این نسخه بازپخش تاریخی یکی از ۲۰ استراتژی پیاده‌سازی‌شده یا انتخاب تطبیقیِ نامزدهای عبورکرده از اعتبارسنجی چندنمادی را اجرا می‌کند؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
+            "حداقل سفارش صرافی، نقدشوندگی و کارمزد واقعی ممکن است باعث شود سرمایه ۱ دلاری قابل معامله نباشد. "
+            "اتصال API با مجوز فقط معامله و بدون برداشت، مرحله‌ای جداگانه و نیازمند تأیید صریح خواهد بود."
+        )
+    else:
+        st.info("سرمایه و هدف را تنظیم کن و اجرای شبیه‌سازی را بزن. مقدار پیش‌فرض ۱ دلار تا هدف ۵ دلار است.")
+
+elif page == "انتخاب‌گر هوشمند استراتژی":
+    st.subheader("انتخاب‌گر استراتژی بر اساس وضعیت بازار")
+    st.warning("این مرحله فقط غربال‌گری روی بخش آموزشی داده است؛ هیچ استراتژی در این صفحه مجاز به معامله نیست. بخش انتهایی داده برای آزمون مستقل کنار گذاشته می‌شود.")
+    c1, c2, c3 = st.columns(3)
+    screen_exchange = c1.selectbox("منبع داده", ["okx", "binance", "bybit"], key="screen_exchange")
+    screen_symbol = c2.text_input("نماد", "BTC/USDT", key="screen_symbol")
+    screen_timeframe = c3.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="screen_timeframe")
+    screen_candles = st.slider("تعداد کندل تاریخی", 300, 1000, 1000, 100, key="screen_candles")
+    if st.button("غربال‌گری استراتژی‌ها", key="run_strategy_screen", type="primary"):
+        try:
+            with st.spinner("آزمایش استراتژی‌ها فقط روی داده آموزشی و با هزینه‌ها..."):
+                screen_market = fetch_ohlcv(screen_exchange, screen_symbol, screen_timeframe, screen_candles)
+                screen_result = validate_regime_candidates(screen_market)
+            st.session_state["strategy_screen_result"] = screen_result
+            st.session_state["strategy_screen_meta"] = {"exchange": screen_exchange, "symbol": screen_symbol, "timeframe": screen_timeframe}
+        except Exception as exc:
+            st.error(f"غربال‌گری ناموفق بود: {exc}")
+    screen_result = st.session_state.get("strategy_screen_result")
+    if screen_result:
+        meta = st.session_state.get("strategy_screen_meta", {})
+        st.caption(f"بازار: {meta.get('exchange')} · {meta.get('symbol')} · {meta.get('timeframe')}")
+        a, b, d = st.columns(3)
+        a.metric("کندل آموزشی", screen_result["training_candles"])
+        b.metric("کندل رزروشده برای آزمون", screen_result["holdout_candles_reserved"])
+        d.metric("حداقل معاملات بسته", screen_result["minimum_closed_trades"])
+        rows = []
+        for regime, details in screen_result["by_regime"].items():
+            metrics = details["candidate_metrics"]
+            rows.append({
+                "وضعیت بازار": regime,
+                "بهترین نامزد": details["best_candidate"] or "هیچ‌کدام",
+                "نامزدهای واجد معیار": details["candidate_count"],
+                "معاملات بسته": metrics.get("trades", 0) if metrics else 0,
+                "نرخ برد (%)": round(metrics.get("win_rate_pct", 0), 2) if metrics else 0,
+                "بازده خالص (%)": round(metrics.get("net_return_pct", 0), 2) if metrics else 0,
+                "Profit Factor": metrics.get("profit_factor") if metrics else "—",
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        holdout_rows = []
+        for regime, details in screen_result["holdout_validation"].items():
+            metrics = details["metrics"]
+            holdout_rows.append({
+                "وضعیت بازار": regime,
+                "نامزد": details["strategy"],
+                "معاملات بسته در آزمون": metrics["trades"],
+                "نرخ برد (%)": round(metrics["win_rate_pct"], 2),
+                "بازده خالص (%)": round(metrics["net_return_pct"], 2),
+                "Profit Factor": metrics["profit_factor"],
+                "عبور از آزمون مستقل": "بله" if details["passes_holdout"] else "خیر",
+            })
+        if holdout_rows:
+            st.markdown("### اعتبارسنجی روی بخش رزروشده")
+            st.dataframe(pd.DataFrame(holdout_rows), use_container_width=True, hide_index=True)
+        st.error("حتی عبور از آزمون این نماد و تایم‌فریم به‌تنهایی مجوز معامله نیست؛ تکرار آزمون روی نمادها و تایم‌فریم‌های دیگر و بازبینی ریسک لازم است.")
+        st.caption(f"مرحله بعد: {screen_result['next_gate']}")
+    else:
+        st.info("برای شروع، داده تاریخی یک نماد را انتخاب و غربال‌گری را اجرا کن.")
+    st.markdown("### تکرار اعتبارسنجی روی چند نماد")
+    st.caption("یک استراتژی باید روی همه مجموعه‌داده‌های انتخاب‌شده در هر وضعیت بازار، مستقل از هم، از معیارها عبور کند.")
+    screen_symbols = st.text_input("نمادها با ویرگول جدا شوند", "BTC/USDT, ETH/USDT", key="screen_symbols")
+    cross_exchanges = st.multiselect(
+        "صرافی‌های اعتبارسنجی",
+        ["okx", "binance", "bybit"],
+        default=[screen_exchange],
+        key="cross_validation_exchanges",
+    )
+    cross_timeframes = st.multiselect(
+        "تایم‌فریم‌های اعتبارسنجی",
+        ["15m", "1h", "4h", "1d"],
+        default=[screen_timeframe],
+        key="cross_validation_timeframes",
+    )
+    if st.button("اعتبارسنجی چندصرافی/چندتایم‌فریم", key="run_cross_market_screen"):
+        st.session_state.pop("strategy_cross_result", None)
+        st.session_state.pop("strategy_cross_meta", None)
+        try:
+            symbols = list(dict.fromkeys(item.strip() for item in screen_symbols.split(",") if item.strip()))
+            if not symbols:
+                raise ValueError("حداقل یک نماد وارد کن.")
+            if not cross_exchanges or not cross_timeframes:
+                raise ValueError("حداقل یک صرافی و یک تایم‌فریم انتخاب کن.")
+            dataset_count = len(symbols) * len(cross_exchanges) * len(cross_timeframes)
+            if dataset_count < 2:
+                raise ValueError("حداقل دو مجموعه‌داده مستقل لازم است.")
+            if dataset_count > 12:
+                raise ValueError("برای کنترل زمان و محدودیت API، حداکثر ۱۲ ترکیب صرافی/نماد/تایم‌فریم را در هر نوبت بررسی کن.")
+            datasets = [
+                {"exchange": ex, "symbol": sym, "timeframe": tf}
+                for ex in cross_exchanges for tf in cross_timeframes for sym in symbols
+            ]
+            with st.spinner(f"دریافت و اعتبارسنجی {dataset_count} مجموعه‌داده مستقل..."):
+                market_sets = {}
+                for item in datasets:
+                    market_key = f"{item['exchange']}:{item['symbol']}:{item['timeframe']}"
+                    market_sets[market_key] = fetch_ohlcv(
+                        item["exchange"], item["symbol"], item["timeframe"], screen_candles
+                    )
+                cross_result = validate_across_markets(market_sets)
+            st.session_state["strategy_cross_result"] = cross_result
+            st.session_state["strategy_cross_meta"] = {
+                "datasets": datasets,
+                "requested_candle_limit": screen_candles,
+                "candle_counts": {key: len(frame) for key, frame in market_sets.items()},
+            }
+        except Exception as exc:
+            st.error(f"اعتبارسنجی چندبازاری ناموفق بود: {exc}")
+    cross_result = st.session_state.get("strategy_cross_result")
+    if cross_result:
+        st.metric("مجموعه‌داده‌های ارزیابی‌شده", cross_result["market_count"])
+        cross_rows = [
+            {"وضعیت بازار": regime, "استراتژی‌های مشترکِ عبورکرده": "، ".join(names) if names else "هیچ‌کدام"}
+            for regime, names in cross_result["replicated_candidates_by_regime"].items()
+        ]
+        st.dataframe(pd.DataFrame(cross_rows), use_container_width=True, hide_index=True)
+        st.warning("این تکرار چندنمادی نیز به‌تنهایی مجوز معامله نیست؛ آزمون چندصرافی/چندتایم‌فریم، بازبینی ریسک و تأیید جداگانه لازم است.")
+        st.caption(f"مرحله بعد: {cross_result['next_gate']}")
+
 elif page == "تحلیل بازار":
     st.subheader("تحلیل بازار")
     exchange = st.selectbox("صرافی", ["binance", "okx", "bybit"])
@@ -138,7 +388,7 @@ elif page == "تحلیل بازار":
 
 elif page == "آزمایشگاه استراتژی":
     st.subheader("آزمایشگاه خودکار استراتژی‌ها")
-    st.caption("۱۱ روش معاملاتی روی داده تاریخی یکسان مقایسه می‌شوند؛ همه سفارش‌ها شبیه‌سازی هستند.")
+    st.caption("۲۰ روش معاملاتی روی داده تاریخی یکسان مقایسه می‌شوند؛ همه سفارش‌ها شبیه‌سازی هستند.")
     exchange = st.selectbox("صرافی داده بازار", ["okx", "binance", "bybit"], key="auto_bt_ex")
     symbol = st.text_input("نماد معاملاتی", "BTC/USDT", key="auto_bt_symbol")
     timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_bt_tf")
@@ -149,7 +399,7 @@ elif page == "آزمایشگاه استراتژی":
     initial_balance = st.number_input("سرمایه اولیه مجازی (USDT)", 100.0, 100000.0, 1000.0, 100.0, key="auto_bt_balance")
     if st.button("🚀 آزمایش همه استراتژی‌ها", type="primary", use_container_width=True):
         try:
-            with st.spinner("دریافت داده و اجرای بک‌تست ۱۱ استراتژی..."):
+            with st.spinner("دریافت داده و اجرای بک‌تست ۲۰ استراتژی..."):
                 market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
                 results = compare_all(market, fee, slippage, initial_balance)
                 regime_results = compare_by_regime(market, fee, slippage, initial_balance)
@@ -184,6 +434,23 @@ elif page == "آزمایشگاه استراتژی":
                          "Profit Factor": pf_text, "وضعیت": "قبول اولیه" if r.get("qualifies") else "تأییدنشده"})
         st.markdown("### جدول رتبه‌بندی")
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.markdown("### ارزیابی جداگانه بر اساس وضعیت بازار")
+        regime_rows = st.session_state.get("strategy_lab_regime_results", [])
+        regime_table = []
+        for item in regime_rows:
+            for regime_name, metrics in item.get("by_regime", {}).items():
+                regime_table.append({
+                    "استراتژی": item["strategy"],
+                    "وضعیت بازار": regime_name,
+                    "معاملات بسته": metrics.get("trades", 0),
+                    "نرخ برد (%)": round(metrics.get("win_rate_pct", 0), 2),
+                    "بازده خالص (%)": round(metrics.get("net_return_pct", 0), 2),
+                    "Profit Factor": metrics.get("profit_factor"),
+                    "وضعیت": "قبول اولیه" if metrics.get("qualifies") else "رد / داده ناکافی",
+                })
+        if regime_table:
+            st.dataframe(pd.DataFrame(regime_table), use_container_width=True, hide_index=True)
+        st.caption("ارزیابی هر وضعیت بازار مستقل است؛ نتایج کم‌نمونه یا کمتر از ۱۰۰ معامله بسته، تأیید محسوب نمی‌شوند.")
         names = [r["strategy"] for r in results]
         selected_name = st.selectbox("جزئیات کدام استراتژی؟", names, key="strategy_lab_detail")
         selected = next(r for r in results if r["strategy"] == selected_name)
@@ -228,7 +495,7 @@ elif page == "آزمایشگاه استراتژی":
         wf_test = wf_col2.number_input("تعداد کندل آزمون", min_value=30, max_value=300, value=100, step=10, key="wf_test")
         if st.button("اجرای آزمون Walk-forward", type="secondary", use_container_width=True):
             try:
-                with st.spinner("اجرای ارزیابی خارج از نمونه برای ۱۱ استراتژی..."):
+                with st.spinner("اجرای ارزیابی خارج از نمونه برای ۲۰ استراتژی..."):
                     wf_market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
                     wf_candidates = strategy_signals(wf_market)
                     wf_result = walk_forward_evaluate(wf_market, wf_candidates, train_size=int(wf_train), test_size=int(wf_test), fee=fee, slippage=slippage, initial_balance=initial_balance)
@@ -251,7 +518,7 @@ elif page == "آزمایشگاه استراتژی":
                 result = fold["test_result"]
                 fold_rows.append({"بازه": index, "استراتژی منتخب": fold["selected_strategy"], "شروع آزمون": fold["test_start"], "پایان آزمون": fold["test_end_exclusive"], "بازده خالص (%)": round(result["net_return_pct"], 2), "افت سرمایه (%)": round(result["max_drawdown_pct"], 2), "معاملات بسته": result["trades"]})
             st.dataframe(pd.DataFrame(fold_rows), use_container_width=True, hide_index=True)
-            st.warning("نتیجه Walk-forward تضمین سود یا تأیید معامله واقعی نیست. معیار ۸۰٪ و حداقل ۱۰۰ معامله باید جداگانه با داده کافی بررسی شود.")
+            st.warning("در هر بازه فقط روشی انتخاب می‌شود که در داده‌های آموزشی همان بازه از معیار حداقل ۱۰۰ معامله، نرخ برد ۸۰٪، بازده و امید ریاضی مثبت و Profit Factor بالاتر از ۱ عبور کند؛ اگر هیچ روشی قبول نشود، در بازه آزمون معامله‌ای انجام نمی‌شود. این نتیجه تضمین سود یا مجوز معامله واقعی نیست.")
 
         st.caption("معیار قبول اولیه: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت، Profit Factor بالاتر از ۱. آزمون خارج از نمونه و walk-forward نیز لازم است؛ ۱۰۰ معامله با ۱۰۰ آزمایش مستقل یکسان نیست.")
     else:
@@ -299,6 +566,62 @@ elif page == "شکار توکن‌های DEX":
         except Exception as e:
             st.error(str(e))
     st.caption("این ابزار فقط اطلاعات عمومی بازار را نمایش می‌دهد و قرارداد را audit یا honeypot را تشخیص نمی‌دهد.")
+
+elif page == "دانشنامه استراتژی‌ها":
+    st.subheader("دانشنامه هوشمند استراتژی‌های معاملاتی")
+    catalogue = list_strategies()
+    st.caption(f"{len(catalogue)} خانواده و روش معاملاتی ثبت شده‌اند؛ فقط روش‌های دارای پیاده‌سازی سیگنال فعلاً قابلیت آزمایش اجرایی دارند.")
+    category_options = ["همه دسته‌ها"] + sorted({item["category"] for item in catalogue})
+    selected_category = st.selectbox("دسته‌بندی", category_options, key="strategy_knowledge_category")
+    filtered = catalogue if selected_category == "همه دسته‌ها" else [item for item in catalogue if item["category"] == selected_category]
+    status_filter = st.selectbox("وضعیت پیاده‌سازی", ["همه", "قابل آزمایش در موتور فعلی", "نیازمند پیاده‌سازی و تحقیق"], key="strategy_knowledge_status")
+    if status_filter == "قابل آزمایش در موتور فعلی":
+        filtered = [item for item in filtered if item["implemented"]]
+    elif status_filter == "نیازمند پیاده‌سازی و تحقیق":
+        filtered = [item for item in filtered if not item["implemented"]]
+    if filtered:
+        chosen_name = st.selectbox("انتخاب روش", [item["name"] for item in filtered], key="strategy_knowledge_selected")
+        chosen = next(item for item in filtered if item["name"] == chosen_name)
+        st.markdown(f"### {chosen['name']}")
+        st.write("**دسته:**", chosen["category"])
+        st.write("**روش استفاده:**", chosen["how_to_use"])
+        st.write("**شرایط مناسب:**", "، ".join(chosen["best_conditions"]))
+        st.write("**شرایط نامناسب / ریسک‌ها:**", "، ".join(chosen["avoid_conditions"]))
+        st.write("**داده‌های موردنیاز:**", chosen["required_data"])
+        if chosen["implemented"]:
+            st.success("برای این روش در موتور فعلی کد تولید سیگنال وجود دارد؛ این به معنی تأیید سودآوری نیست.")
+        else:
+            st.warning("این روش فعلاً در دانشنامه ثبت شده و هنوز کد اجرایی/تست معتبر در موتور NEXUS ندارد؛ اجازه معامله ندارد.")
+    else:
+        st.info("در این فیلتر موردی وجود ندارد.")
+    st.markdown("### تشخیص آزمایشی وضعیت بازار")
+    st.caption("این تشخیص فقط از کندل‌های بسته‌شده اخیر استفاده می‌کند و برچسب آن قطعیت یا پیش‌بینی نیست.")
+    regime_exchange = st.selectbox("منبع داده تشخیص", ["okx", "binance", "bybit"], key="regime_exchange")
+    regime_symbol = st.text_input("نماد تشخیص", "BTC/USDT", key="regime_symbol")
+    regime_timeframe = st.selectbox("تایم‌فریم تشخیص", ["15m", "1h", "4h", "1d"], index=1, key="regime_timeframe")
+    if st.button("تشخیص وضعیت و پیشنهاد روش‌ها", key="detect_regime_button"):
+        try:
+            regime_market = fetch_ohlcv(regime_exchange, regime_symbol, regime_timeframe, 100)
+            detected = detect_market_regime(regime_market)
+            st.session_state["last_detected_regime"] = detected
+            st.session_state["last_detected_market"] = f"{regime_exchange} · {regime_symbol} · {regime_timeframe}"
+        except Exception as exc:
+            st.error(f"تشخیص وضعیت بازار انجام نشد: {exc}")
+    detected = st.session_state.get("last_detected_regime")
+    if detected:
+        if detected["regime"] == "unknown":
+            st.warning("داده کافی برای تشخیص وجود ندارد؛ هیچ روشی پیشنهاد اجرایی نمی‌شود.")
+        else:
+            st.metric("وضعیت تخمینی بازار", detected["regime"])
+            st.caption(f"اعتماد heuristic: {detected['confidence']:.0%} · تغییر قیمت در پنجره: {detected['trend_strength_pct']}% · نوسان تخمینی: {detected['volatility_pct']}%")
+            candidates = recommend_strategies(detected["regime"])
+            st.write("روش‌های دارای کد سیگنال که با این وضعیت هم‌خوانی اولیه دارند:")
+            if candidates:
+                st.write("، ".join(item["name"] for item in candidates))
+            else:
+                st.info("روش اجرایی هم‌خوان در فهرست فعلی پیدا نشد؛ معامله نکن.")
+            st.caption("پیشنهاد صرفاً برای اولویت‌بندی آزمایش است؛ هیچ روش به‌خاطر این برچسب تأیید یا فعال نمی‌شود.")
+    st.warning("شرایط مناسب، فرضیه اولیه برای آزمایش هستند نه قانون قطعی. هیچ استراتژی بدون بک‌تست واقع‌گرایانه و عبور از معیارهای پذیرش نباید فعال شود.")
 
 elif page == "مرکز یادگیری":
     st.subheader("دفترچه یادگیری")
