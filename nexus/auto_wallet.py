@@ -3,7 +3,7 @@ import math
 
 import pandas as pd
 
-from nexus.strategies import ema_rsi_signals
+from nexus.strategy_lab import strategy_signals
 
 
 def _finite_number(value, name, *, minimum=None, maximum=None, strict_min=False):
@@ -30,8 +30,9 @@ def simulate_to_goal(
     max_position_pct=25.0,
     fee_pct=0.1,
     slippage_pct=0.05,
+    strategy_name="EMA 20/50 + RSI",
 ):
-    """Replay closed candles using EMA/RSI entries and EMA trend exits.
+    """Replay one implemented strategy on completed candles.
 
     Signals from candle i-1 execute at candle i open. The simulation is
     long-only, applies fees/slippage on both sides, and stops at the target,
@@ -48,21 +49,28 @@ def simulate_to_goal(
     if fee >= 1 or slippage >= 1:
         raise ValueError("Fee and slippage must be below 100%")
 
-    required = {"open", "close", "ema20", "ema50", "rsi"}
+    required = {"open", "high", "low", "close"}
     if not isinstance(market, pd.DataFrame) or len(market) < 3:
         raise ValueError("At least three closed market candles are required")
     missing = required.difference(market.columns)
     if missing:
         raise ValueError(f"Missing market columns: {', '.join(sorted(missing))}")
     data = market.reset_index(drop=True).copy()
-    for col in ("open", "close", "ema20", "ema50", "rsi"):
+    for col in ("open", "high", "low", "close"):
         data[col] = pd.to_numeric(data[col], errors="coerce")
-    if not data[["open", "close", "ema20", "ema50"]].apply(lambda c: c.map(math.isfinite)).all().all():
-        raise ValueError("Market prices and EMA indicators must be finite")
-    if (data[["open", "close"]] <= 0).any().any():
-        raise ValueError("Market prices must be positive")
+    if not data[["open", "high", "low", "close"]].apply(lambda c: c.map(math.isfinite)).all().all():
+        raise ValueError("OHLC prices must be finite")
+    if (data[["open", "high", "low", "close"]] <= 0).any().any():
+        raise ValueError("OHLC prices must be positive")
+    if (data["high"] < data["low"]).any() or (data["close"] > data["high"]).any() or (data["close"] < data["low"]).any():
+        raise ValueError("OHLC prices are inconsistent")
 
-    signals = ema_rsi_signals(data).tolist()
+    available_signals = strategy_signals(data)
+    if strategy_name not in available_signals:
+        raise ValueError(f"Unknown or non-executable strategy: {strategy_name}")
+    entry_series, exit_series = available_signals[strategy_name]
+    entry_signals = entry_series.to_numpy(dtype=bool)
+    exit_signals = exit_series.to_numpy(dtype=bool)
     cash = initial
     units = 0.0
     entry_cost = 0.0
@@ -88,6 +96,7 @@ def simulate_to_goal(
             "return_pct": round((pnl / entry_cost) * 100, 4) if entry_cost else 0.0,
             "exit_index": index,
             "exit_reason": reason,
+            "strategy": strategy_name,
         })
         units = 0.0
         entry_cost = 0.0
@@ -97,8 +106,8 @@ def simulate_to_goal(
         candle = data.iloc[i]
         execution_open = float(candle["open"])
         last_price = float(candle["close"])
-        should_exit = units > 0 and float(previous["ema20"]) < float(previous["ema50"])
-        should_enter = units == 0 and bool(signals[i - 1]) and cash > 0
+        should_exit = units > 0 and bool(exit_signals[i - 1])
+        should_enter = units == 0 and bool(entry_signals[i - 1]) and cash > 0
 
         if should_exit:
             close_position(execution_open, i, "strategy_exit")
@@ -136,6 +145,7 @@ def simulate_to_goal(
         "simulation_only": True,
         "live_orders_sent": False,
         "status": status,
+        "strategy": strategy_name,
         "initial_balance": round(initial, 10),
         "target_balance": round(target, 10),
         "stop_balance": round(stop_balance, 10),
