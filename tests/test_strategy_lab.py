@@ -156,7 +156,7 @@ def test_regime_classifier_marks_warmup_as_insufficient_data():
 
 def test_all_seventeen_strategies_are_evaluated_separately_by_regime():
     results = compare_by_regime(sample_market(600), fee=0.001, slippage=0.0005)
-    assert len(results) == 13
+    assert len(results) == 17
     expected = {"bullish", "bearish", "sideways"}
     for row in results:
         assert set(row["by_regime"]) == expected
