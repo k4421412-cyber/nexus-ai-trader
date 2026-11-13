@@ -49,3 +49,7 @@ The catalogue describes common families and practical heuristics. It does not pr
 
 
 `validate_across_markets` adds a conservative replication gate: the same candidate must pass the per-regime training and untouched-holdout checks on every supplied dataset. The UI can compare multiple symbols on the selected exchange/timeframe. This still does not grant execution permission; cross-exchange and cross-timeframe replication plus risk review remain separate gates.
+
+## Paper-wallet integration
+
+The Auto Wallet can replay any of the 13 implemented strategies manually. Its adaptive mode consumes only the replicated candidate map from the multi-symbol validator, and only when the replay uses the same exchange, timeframe and a symbol included in that validation run. It selects using the prior completed candle's regime and closes an open position at the next candle open when the regime changes. If no candidate passed for a regime, it does not open a position there. This is a historical paper simulation only; it never changes `execution_approved`, sends orders or enables live trading.
