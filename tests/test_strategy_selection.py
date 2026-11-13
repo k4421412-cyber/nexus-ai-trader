@@ -68,8 +68,15 @@ def test_cross_market_replication_requires_same_strategy_in_each_dataset(monkeyp
         "market-a": {"validated_candidates_by_regime": {"bullish": "EMA 9/21", "bearish": "MACD"}},
         "market-b": {"validated_candidates_by_regime": {"bullish": "EMA 9/21", "bearish": "RSI"}},
     }
-    monkeypatch.setattr(strategy_selection, "validate_regime_candidates", lambda frame, **kwargs: results[frame])
-    result = strategy_selection.validate_across_markets({"market-a": "market-a", "market-b": "market-b"})
+    market_a = sample_market()
+    market_a.attrs["test_key"] = "market-a"
+    market_b = sample_market()
+    market_b.attrs["test_key"] = "market-b"
+    monkeypatch.setattr(
+        strategy_selection, "validate_regime_candidates",
+        lambda frame, **kwargs: results[frame.attrs["test_key"]]
+    )
+    result = strategy_selection.validate_across_markets({"market-a": market_a, "market-b": market_b})
     assert result["market_count"] == 2
     assert result["replicated_candidates_by_regime"]["bullish"] == ["EMA 9/21"]
     assert result["replicated_candidates_by_regime"]["bearish"] == []
