@@ -20,14 +20,10 @@ def sample_market(n=8):
 
 def test_simulation_is_explicitly_paper_only_and_respects_target():
     market = sample_market()
-    # Inject a valid crossover signal at candle 3.
-    market.loc[2, "ema20"] = 99
-    market.loc[2, "ema50"] = 100
-    market.loc[3, "ema20"] = 101
-    market.loc[3, "ema50"] = 100
     result = simulate_to_goal(
         market, initial_balance=1, target_balance=1.01,
         max_loss_pct=20, max_position_pct=100, fee_pct=0, slippage_pct=0,
+        strategy_name="EMA 9/21 crossover",
     )
     assert result["simulation_only"] is True
     assert result["live_orders_sent"] is False
