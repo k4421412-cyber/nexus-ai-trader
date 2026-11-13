@@ -9,6 +9,8 @@ def sample_market(n=8):
     close = np.array([100, 100, 100, 100, 110, 120, 130, 140], dtype=float)[:n]
     return pd.DataFrame({
         "open": close,
+        "high": close * 1.01,
+        "low": close * 0.99,
         "close": close,
         "ema20": np.array([99, 99, 99, 99, 101, 105, 110, 120], dtype=float)[:n],
         "ema50": np.array([100, 100, 100, 100, 100, 100, 100, 100], dtype=float)[:n],
@@ -60,6 +62,25 @@ def test_rejects_missing_or_non_finite_market_data():
     bad.loc[2, "close"] = np.nan
     with pytest.raises(ValueError, match="finite"):
         simulate_to_goal(bad)
+
+
+def test_rejects_unknown_or_research_only_strategy():
+    with pytest.raises(ValueError, match="Unknown or non-executable"):
+        simulate_to_goal(sample_market(), strategy_name="Supertrend")
+
+
+def test_all_eleven_implemented_strategies_can_run_in_paper_mode():
+    from nexus.strategy_lab import strategy_signals
+
+    market = sample_market()
+    for strategy_name in strategy_signals(market):
+        result = simulate_to_goal(
+            market, strategy_name=strategy_name, initial_balance=100,
+            target_balance=1000, max_position_pct=100, fee_pct=0, slippage_pct=0,
+        )
+        assert result["simulation_only"] is True
+        assert result["live_orders_sent"] is False
+        assert result["strategy"] == strategy_name
 
 
 def test_trade_fees_and_slippage_reduce_result():
