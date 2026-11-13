@@ -502,7 +502,7 @@ elif page == "آزمایشگاه استراتژی":
                 result = fold["test_result"]
                 fold_rows.append({"بازه": index, "استراتژی منتخب": fold["selected_strategy"], "شروع آزمون": fold["test_start"], "پایان آزمون": fold["test_end_exclusive"], "بازده خالص (%)": round(result["net_return_pct"], 2), "افت سرمایه (%)": round(result["max_drawdown_pct"], 2), "معاملات بسته": result["trades"]})
             st.dataframe(pd.DataFrame(fold_rows), use_container_width=True, hide_index=True)
-            st.warning("نتیجه Walk-forward تضمین سود یا تأیید معامله واقعی نیست. معیار ۸۰٪ و حداقل ۱۰۰ معامله باید جداگانه با داده کافی بررسی شود.")
+            st.warning("در هر بازه فقط روشی انتخاب می‌شود که در داده‌های آموزشی همان بازه از معیار حداقل ۱۰۰ معامله، نرخ برد ۸۰٪، بازده و امید ریاضی مثبت و Profit Factor بالاتر از ۱ عبور کند؛ اگر هیچ روشی قبول نشود، در بازه آزمون معامله‌ای انجام نمی‌شود. این نتیجه تضمین سود یا مجوز معامله واقعی نیست.")
 
         st.caption("معیار قبول اولیه: حداقل ۱۰۰ معامله بسته، نرخ برد حداقل ۸۰٪، بازده خالص و امید ریاضی مثبت، Profit Factor بالاتر از ۱. آزمون خارج از نمونه و walk-forward نیز لازم است؛ ۱۰۰ معامله با ۱۰۰ آزمایش مستقل یکسان نیست.")
     else:
