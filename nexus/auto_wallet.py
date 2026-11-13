@@ -74,6 +74,7 @@ def simulate_to_goal(
     cash = initial
     units = 0.0
     entry_cost = 0.0
+    entry_index = None
     trades = []
     curve = [initial]
     status = "history_exhausted"
@@ -82,7 +83,7 @@ def simulate_to_goal(
     stop_index = len(data) - 1
 
     def close_position(price, index, reason):
-        nonlocal cash, units, entry_cost
+        nonlocal cash, units, entry_cost, entry_index
         if units <= 0:
             return
         fill = price * (1 - slippage)
@@ -94,12 +95,15 @@ def simulate_to_goal(
             "exit_proceeds": round(proceeds, 10),
             "net_pnl": round(pnl, 10),
             "return_pct": round((pnl / entry_cost) * 100, 4) if entry_cost else 0.0,
+            "entry_index": entry_index,
+            "entry_signal_index": entry_index - 1 if entry_index is not None else None,
             "exit_index": index,
             "exit_reason": reason,
             "strategy": strategy_name,
         })
         units = 0.0
         entry_cost = 0.0
+        entry_index = None
 
     for i in range(1, len(data)):
         previous = data.iloc[i - 1]
@@ -119,6 +123,7 @@ def simulate_to_goal(
             if allocation > 0 and total_cost_per_unit > 0:
                 units = allocation / total_cost_per_unit
                 entry_cost = units * total_cost_per_unit
+                entry_index = i
                 cash -= entry_cost
 
         marked_equity = cash + units * last_price
