@@ -85,10 +85,10 @@ def test_all_eleven_implemented_strategies_can_run_in_paper_mode():
 
 def test_trade_fees_and_slippage_reduce_result():
     market = sample_market()
-    market.loc[2, ["ema20", "ema50"]] = [99, 100]
-    market.loc[3, ["ema20", "ema50"]] = [101, 100]
     free = simulate_to_goal(market, initial_balance=100, target_balance=1000,
-                            max_position_pct=100, fee_pct=0, slippage_pct=0)
+                            max_position_pct=100, fee_pct=0, slippage_pct=0,
+                            strategy_name="EMA 9/21 crossover")
     costly = simulate_to_goal(market, initial_balance=100, target_balance=1000,
-                              max_position_pct=100, fee_pct=1, slippage_pct=1)
+                              max_position_pct=100, fee_pct=1, slippage_pct=1,
+                              strategy_name="EMA 9/21 crossover")
     assert costly["final_balance"] < free["final_balance"]
