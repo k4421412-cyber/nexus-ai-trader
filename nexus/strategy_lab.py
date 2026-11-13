@@ -159,6 +159,19 @@ def run_backtest(df, entry, exit_, fee=0.001, slippage=0.0005, initial_balance=1
     cl = pd.to_numeric(market.close, errors="coerce").to_numpy(dtype=float)
     if not np.isfinite(op).all() or not np.isfinite(cl).all() or (op <= 0).any() or (cl <= 0).any():
         raise ValueError("Invalid OHLC prices")
+    if {"high", "low"}.issubset(market.columns):
+        high = pd.to_numeric(market.high, errors="coerce").to_numpy(dtype=float)
+        low = pd.to_numeric(market.low, errors="coerce").to_numpy(dtype=float)
+        if not np.isfinite(high).all() or not np.isfinite(low).all():
+            raise ValueError("Invalid OHLC high/low prices")
+        if (high <= 0).any() or (low <= 0).any():
+            raise ValueError("OHLC high/low prices must be positive")
+        if (high < np.maximum.reduce([op, cl, low])).any() or (low > np.minimum(op, cl)).any():
+            raise ValueError("OHLC prices are inconsistent")
+    if "timestamp" in market.columns:
+        timestamps = pd.to_numeric(market.timestamp, errors="coerce").to_numpy(dtype=float)
+        if not np.isfinite(timestamps).all() or pd.Series(timestamps).duplicated().any() or not pd.Series(timestamps).is_monotonic_increasing:
+            raise ValueError("Candle timestamps must be finite, unique and chronological")
     cash, units, cost = initial_balance, 0.0, 0.0
     trades, equity = [], [initial_balance]
     entry_i = None
@@ -253,6 +266,16 @@ def evaluate_by_condition(condition_metrics, min_trades=100, min_win_rate_pct=80
 
 def classify_market_regime(df, adx_threshold=20.0):
     """Classify each candle using trailing-only EMA trend and ADX information."""
+    if not isinstance(df, pd.DataFrame) or not {"close", "high", "low"}.issubset(df.columns):
+        raise ValueError("Market data must contain close, high and low columns")
+    if isinstance(adx_threshold, bool):
+        raise ValueError("ADX threshold must be a finite number between 0 and 100")
+    try:
+        adx_threshold = float(adx_threshold)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("ADX threshold must be a finite number between 0 and 100") from exc
+    if not math.isfinite(adx_threshold) or not 0 <= adx_threshold <= 100:
+        raise ValueError("ADX threshold must be a finite number between 0 and 100")
     x = df.copy()
     close = pd.to_numeric(x["close"], errors="coerce")
     high = pd.to_numeric(x["high"], errors="coerce")
@@ -261,6 +284,12 @@ def classify_market_regime(df, adx_threshold=20.0):
         raise ValueError("OHLC data contains missing or non-finite values")
     if (close <= 0).any() or (high <= 0).any() or (low <= 0).any():
         raise ValueError("OHLC prices must be positive")
+    if (high < low).any() or (close > high).any() or (close < low).any():
+        raise ValueError("OHLC prices are inconsistent")
+    if "open" in x.columns:
+        open_ = pd.to_numeric(x["open"], errors="coerce")
+        if not np.isfinite(open_).all() or (open_ <= 0).any() or (open_ > high).any() or (open_ < low).any():
+            raise ValueError("OHLC open prices are invalid")
     ema50 = close.ewm(span=50, adjust=False, min_periods=50).mean()
     ema200 = close.ewm(span=200, adjust=False, min_periods=200).mean()
     up_move = high.diff()
