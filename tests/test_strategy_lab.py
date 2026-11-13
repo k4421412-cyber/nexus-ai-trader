@@ -17,10 +17,10 @@ def sample_market(n=500):
     return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close})
 
 
-def test_strategy_library_has_thirteen_boolean_signal_pairs():
+def test_strategy_library_has_fifteen_boolean_signal_pairs():
     market = sample_market()
     signals = strategy_signals(market)
-    assert len(signals) == 13
+    assert len(signals) == 15
     for entry, exit_ in signals.values():
         assert len(entry) == len(market)
         assert len(exit_) == len(market)
