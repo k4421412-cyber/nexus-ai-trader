@@ -53,7 +53,7 @@ No live orders, real deposits, withdrawals, private keys or seed phrases are sup
 - Cross-process file locking and reload-before-write prevent concurrent Streamlit sessions from silently overwriting one another's ledger updates on a single shared filesystem.
 - Ledger reload reconciles investor contributions, investor P/L, pool totals, finite balances and high-water mark before accepting the state.
 - Simulated partial withdrawals are recorded as ledger events, limited to each investor's available virtual balance, and subsequent simulated P/L is allocated using remaining virtual balances.
-- Walk-forward evaluation selects among supplied causal strategy signal streams using only each past training window, then evaluates the selected candidate on the next untouched test window. Each fold starts with a separate virtual balance; fold returns are not compounded.
+- Walk-forward evaluation selects only candidates that pass the training hard gate (at least 100 closed trades, at least 80% win rate, positive net return, positive expectancy and Profit Factor above 1); it evaluates the selected candidate on the next untouched test window. If no candidate passes, the fold remains flat. Each fold starts with a separate virtual balance; fold returns are not compounded.
 - Browser-level responsive checks run at 320, 375, 390 and 430 CSS pixels across the navigation pages. This is browser emulation, not a substitute for physical Android/iOS device acceptance.
 - A CI concurrency test creates multiple ledger clients and submits simultaneous virtual allocations to detect lost updates.
 
