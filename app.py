@@ -232,7 +232,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
         else:
             st.info("در این بازه هیچ معامله‌ای با شرط استراتژی انجام نشد.")
         st.caption(
-            "این نسخه بازپخش تاریخی یکی از ۱۳ استراتژی پیاده‌سازی‌شده یا انتخاب تطبیقیِ نامزدهای عبورکرده از اعتبارسنجی چندنمادی را اجرا می‌کند؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
+            "این نسخه بازپخش تاریخی یکی از ۱۵ استراتژی پیاده‌سازی‌شده یا انتخاب تطبیقیِ نامزدهای عبورکرده از اعتبارسنجی چندنمادی را اجرا می‌کند؛ ربات هنوز به‌صورت شبانه‌روزی بازار را پایش نمی‌کند. "
             "حداقل سفارش صرافی، نقدشوندگی و کارمزد واقعی ممکن است باعث شود سرمایه ۱ دلاری قابل معامله نباشد. "
             "اتصال API با مجوز فقط معامله و بدون برداشت، مرحله‌ای جداگانه و نیازمند تأیید صریح خواهد بود."
         )
@@ -372,7 +372,7 @@ elif page == "تحلیل بازار":
 
 elif page == "آزمایشگاه استراتژی":
     st.subheader("آزمایشگاه خودکار استراتژی‌ها")
-    st.caption("۱۳ روش معاملاتی روی داده تاریخی یکسان مقایسه می‌شوند؛ همه سفارش‌ها شبیه‌سازی هستند.")
+    st.caption("۱۵ روش معاملاتی روی داده تاریخی یکسان مقایسه می‌شوند؛ همه سفارش‌ها شبیه‌سازی هستند.")
     exchange = st.selectbox("صرافی داده بازار", ["okx", "binance", "bybit"], key="auto_bt_ex")
     symbol = st.text_input("نماد معاملاتی", "BTC/USDT", key="auto_bt_symbol")
     timeframe = st.selectbox("تایم‌فریم", ["15m", "1h", "4h", "1d"], index=1, key="auto_bt_tf")
@@ -383,7 +383,7 @@ elif page == "آزمایشگاه استراتژی":
     initial_balance = st.number_input("سرمایه اولیه مجازی (USDT)", 100.0, 100000.0, 1000.0, 100.0, key="auto_bt_balance")
     if st.button("🚀 آزمایش همه استراتژی‌ها", type="primary", use_container_width=True):
         try:
-            with st.spinner("دریافت داده و اجرای بک‌تست ۱۳ استراتژی..."):
+            with st.spinner("دریافت داده و اجرای بک‌تست ۱۵ استراتژی..."):
                 market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
                 results = compare_all(market, fee, slippage, initial_balance)
                 regime_results = compare_by_regime(market, fee, slippage, initial_balance)
@@ -479,7 +479,7 @@ elif page == "آزمایشگاه استراتژی":
         wf_test = wf_col2.number_input("تعداد کندل آزمون", min_value=30, max_value=300, value=100, step=10, key="wf_test")
         if st.button("اجرای آزمون Walk-forward", type="secondary", use_container_width=True):
             try:
-                with st.spinner("اجرای ارزیابی خارج از نمونه برای ۱۳ استراتژی..."):
+                with st.spinner("اجرای ارزیابی خارج از نمونه برای ۱۵ استراتژی..."):
                     wf_market = add_indicators(fetch_ohlcv(exchange, symbol, timeframe, candle_limit))
                     wf_candidates = strategy_signals(wf_market)
                     wf_result = walk_forward_evaluate(wf_market, wf_candidates, train_size=int(wf_train), test_size=int(wf_test), fee=fee, slippage=slippage, initial_balance=initial_balance)
