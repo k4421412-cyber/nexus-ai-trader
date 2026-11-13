@@ -163,11 +163,12 @@ elif page == "کیف پول خودکار (آزمایشی)":
     else:
         cross_result = st.session_state.get("strategy_cross_result", {})
         cross_meta = st.session_state.get("strategy_cross_meta", {})
-        validated_symbols = [item.upper() for item in cross_meta.get("symbols", [])]
-        same_validation_scope = (
-            cross_meta.get("exchange") == exchange
-            and cross_meta.get("timeframe") == timeframe
-            and symbol.strip().upper() in validated_symbols
+        validated_datasets = cross_meta.get("datasets", [])
+        same_validation_scope = any(
+            item.get("exchange") == exchange
+            and item.get("timeframe") == timeframe
+            and str(item.get("symbol", "")).upper() == symbol.strip().upper()
+            for item in validated_datasets
         )
         replicated = cross_result.get("replicated_candidates_by_regime", {})
         strategy_by_regime = {
@@ -175,7 +176,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
         } if same_validation_scope else {}
         if strategy_by_regime:
             st.info("ربات فقط بین نامزدهایی انتخاب می‌کند که در اعتبارسنجی مستقلِ چندنمادی عبور کرده‌اند. این انتخاب فقط برای شبیه‌سازی است.")
-            st.caption(f"دامنه اعتبارسنجی: {cross_meta.get('exchange')} · {cross_meta.get('timeframe')} · {', '.join(cross_meta.get('symbols', []))}")
+            st.caption(f"دامنه اعتبارسنجی شامل {len(validated_datasets)} ترکیب صرافی/نماد/تایم‌فریم است؛ بازار فعلی در این مجموعه وجود دارد.")
             st.write("نامزدهای فعال برای بازپخش:", strategy_by_regime)
         elif not same_validation_scope:
             st.warning("برای جلوگیری از تعمیم بی‌پشتوانه، انتخاب خودکار فقط روی همان صرافی، تایم‌فریم و نمادی فعال می‌شود که در اعتبارسنجی چندنمادی حضور داشته باشد. اعتبارسنجی را با نماد فعلی و دست‌کم یک نماد دیگر تکرار کن.")
@@ -298,26 +299,49 @@ elif page == "انتخاب‌گر هوشمند استراتژی":
     st.markdown("### تکرار اعتبارسنجی روی چند نماد")
     st.caption("یک استراتژی باید روی همه مجموعه‌داده‌های انتخاب‌شده در هر وضعیت بازار، مستقل از هم، از معیارها عبور کند.")
     screen_symbols = st.text_input("نمادها با ویرگول جدا شوند", "BTC/USDT, ETH/USDT", key="screen_symbols")
-    if st.button("اعتبارسنجی مشترک نمادها", key="run_cross_market_screen"):
+    cross_exchanges = st.multiselect(
+        "صرافی‌های اعتبارسنجی",
+        ["okx", "binance", "bybit"],
+        default=[screen_exchange],
+        key="cross_validation_exchanges",
+    )
+    cross_timeframes = st.multiselect(
+        "تایم‌فریم‌های اعتبارسنجی",
+        ["15m", "1h", "4h", "1d"],
+        default=[screen_timeframe],
+        key="cross_validation_timeframes",
+    )
+    if st.button("اعتبارسنجی چندصرافی/چندتایم‌فریم", key="run_cross_market_screen"):
         st.session_state.pop("strategy_cross_result", None)
         st.session_state.pop("strategy_cross_meta", None)
         try:
             symbols = list(dict.fromkeys(item.strip() for item in screen_symbols.split(",") if item.strip()))
-            if len(symbols) < 2:
-                raise ValueError("حداقل دو نماد متفاوت وارد کن.")
-            with st.spinner("دریافت داده و اعتبارسنجی جداگانه هر نماد..."):
+            if not symbols:
+                raise ValueError("حداقل یک نماد وارد کن.")
+            if not cross_exchanges or not cross_timeframes:
+                raise ValueError("حداقل یک صرافی و یک تایم‌فریم انتخاب کن.")
+            dataset_count = len(symbols) * len(cross_exchanges) * len(cross_timeframes)
+            if dataset_count < 2:
+                raise ValueError("حداقل دو مجموعه‌داده مستقل لازم است.")
+            if dataset_count > 12:
+                raise ValueError("برای کنترل زمان و محدودیت API، حداکثر ۱۲ ترکیب صرافی/نماد/تایم‌فریم را در هر نوبت بررسی کن.")
+            datasets = [
+                {"exchange": ex, "symbol": sym, "timeframe": tf}
+                for ex in cross_exchanges for tf in cross_timeframes for sym in symbols
+            ]
+            with st.spinner(f"دریافت و اعتبارسنجی {dataset_count} مجموعه‌داده مستقل..."):
                 market_sets = {
-                    f"{screen_exchange}:{symbol}:{screen_timeframe}": fetch_ohlcv(screen_exchange, symbol, screen_timeframe, screen_candles)
-                    for symbol in symbols
+                    f"{item['exchange']}:{item['symbol']}:{item['timeframe']}":
+                        fetch_ohlcv(item["exchange"], item["symbol"], item["timeframe"], screen_candles)
+                    for item in datasets
                 }
                 cross_result = validate_across_markets(market_sets)
             st.session_state["strategy_cross_result"] = cross_result
             st.session_state["strategy_cross_meta"] = {
-                "exchange": screen_exchange, "timeframe": screen_timeframe,
-                "symbols": symbols, "candles": screen_candles,
+                "datasets": datasets, "candles": screen_candles,
             }
         except Exception as exc:
-            st.error(f"اعتبارسنجی چندنمادی ناموفق بود: {exc}")
+            st.error(f"اعتبارسنجی چندبازاری ناموفق بود: {exc}")
     cross_result = st.session_state.get("strategy_cross_result")
     if cross_result:
         st.metric("مجموعه‌داده‌های ارزیابی‌شده", cross_result["market_count"])
