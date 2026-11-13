@@ -15,7 +15,7 @@ Each entry documents:
 
 Only entries marked `signal_engine_available` have an existing signal implementation. Research-only entries are educational knowledge and must never be treated as executable signals. A method becomes executable only after implementation, unit tests, realistic fees/slippage, no-lookahead checks, walk-forward/out-of-sample tests, and regime-specific evaluation.
 
-The current executable set is the 15 methods in `nexus.strategy_lab.strategy_signals`. The larger catalogue does not mean the other methods have already been coded or validated.
+The current executable set is the 17 methods in `nexus.strategy_lab.strategy_signals`. The larger catalogue does not mean the other methods have already been coded or validated.
 
 ## Regime guidance
 
@@ -45,11 +45,11 @@ The catalogue describes common families and practical heuristics. It does not pr
 
 ## Regime-specific candidate screening
 
-`nexus.strategy_selection.screen_regime_candidates` screens the 15 currently implemented signal strategies on the first 70% of a chronological history by default. It keeps the final 30% untouched as a holdout and applies the hard gate separately for bullish, bearish and sideways regimes: at least 100 closed trades, at least 80% winners, positive net return, positive expectancy and Profit Factor above 1 (or infinite with no losing trades). It reports only research candidates and explicitly sets `execution_approved=false`. The `validate_regime_candidates` step then evaluates the training-selected candidate on that untouched holdout using causal signals and entry-regime labels. The candidate must pass the same closed-trade, win-rate, net-return, expectancy and Profit Factor gates again. Even then, `execution_approved` remains false: replication across additional symbols/timeframes and a separate risk review are still required. This screening is not a proof of future performance.
+`nexus.strategy_selection.screen_regime_candidates` screens the 17 currently implemented signal strategies on the first 70% of a chronological history by default. It keeps the final 30% untouched as a holdout and applies the hard gate separately for bullish, bearish and sideways regimes: at least 100 closed trades, at least 80% winners, positive net return, positive expectancy and Profit Factor above 1 (or infinite with no losing trades). It reports only research candidates and explicitly sets `execution_approved=false`. The `validate_regime_candidates` step then evaluates the training-selected candidate on that untouched holdout using causal signals and entry-regime labels. The candidate must pass the same closed-trade, win-rate, net-return, expectancy and Profit Factor gates again. Even then, `execution_approved` remains false: replication across additional symbols/timeframes and a separate risk review are still required. This screening is not a proof of future performance.
 
 
 `validate_across_markets` adds a conservative replication gate: the same candidate must pass the per-regime training and untouched-holdout checks on every supplied dataset. The UI can compare up to 12 independent exchange/symbol/timeframe combinations, including different exchanges and timeframes. This still does not grant execution permission; cross-exchange and cross-timeframe replication plus risk review remain separate gates.
 
 ## Paper-wallet integration
 
-The Auto Wallet can replay any of the 15 implemented strategies manually. Its adaptive mode consumes only the replicated candidate map from the multi-symbol validator, and only when the replay's exact exchange, timeframe and symbol combination is included in that validation run. It selects using the prior completed candle's regime and closes an open position at the next candle open when the regime changes. If no candidate passed for a regime, it does not open a position there. This is a historical paper simulation only; it never changes `execution_approved`, sends orders or enables live trading.
+The Auto Wallet can replay any of the 17 implemented strategies manually. Its adaptive mode consumes only the replicated candidate map from the multi-symbol validator, and only when the replay's exact exchange, timeframe and symbol combination is included in that validation run. It selects using the prior completed candle's regime and closes an open position at the next candle open when the regime changes. If no candidate passed for a regime, it does not open a position there. This is a historical paper simulation only; it never changes `execution_approved`, sends orders or enables live trading.
