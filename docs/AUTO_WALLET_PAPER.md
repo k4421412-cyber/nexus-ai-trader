@@ -10,7 +10,7 @@ The simulator:
 - applies a maximum loss threshold and maximum position allocation;
 - accounts for estimated entry/exit fees and slippage;
 - liquidates at the target, risk limit, or end of the supplied historical range;
-- reports trade history, selected strategy and regime, signal/execution candle indices, and an equity curve.
+- reports trade history, selected strategy and regime, signal/execution candle indices, equity curve, and maximum drawdown.
 
 ## Safety boundaries
 
