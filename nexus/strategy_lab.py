@@ -29,6 +29,12 @@ def _indicators(df):
         raise ValueError("OHLC data contains missing or non-finite values")
     if (close <= 0).any() or (high <= 0).any() or (low <= 0).any():
         raise ValueError("OHLC prices must be positive")
+    if (high < low).any() or (close > high).any() or (close < low).any():
+        raise ValueError("OHLC prices are inconsistent")
+    if "open" in x.columns:
+        open_ = pd.to_numeric(x["open"], errors="coerce")
+        if not np.isfinite(open_).all() or (open_ <= 0).any() or (open_ > high).any() or (open_ < low).any():
+            raise ValueError("OHLC open prices are invalid")
     x["ema9"] = close.ewm(span=9, adjust=False).mean()
     x["ema12"] = close.ewm(span=12, adjust=False).mean()
     x["ema21"] = close.ewm(span=21, adjust=False).mean()
