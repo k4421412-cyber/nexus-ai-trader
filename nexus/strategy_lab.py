@@ -120,8 +120,8 @@ def _indicators(df):
     span_b_visible = ((high.rolling(52).max() + low.rolling(52).min()) / 2).shift(26)
     x["ichimoku_tenkan"] = tenkan
     x["ichimoku_kijun"] = kijun
-    x["ichimoku_cloud_top"] = pd.concat([span_a_visible, span_b_visible], axis=1).max(axis=1)
-    x["ichimoku_cloud_bottom"] = pd.concat([span_a_visible, span_b_visible], axis=1).min(axis=1)
+    x["ichimoku_cloud_top"] = pd.concat([span_a_visible, span_b_visible], axis=1).max(axis=1, skipna=False)
+    x["ichimoku_cloud_bottom"] = pd.concat([span_a_visible, span_b_visible], axis=1).min(axis=1, skipna=False)
     x["ichimoku_chikou_confirm"] = close > high.shift(26)
     return x
 
