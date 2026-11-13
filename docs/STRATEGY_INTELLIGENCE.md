@@ -13,7 +13,7 @@ Each entry documents:
 
 ## Execution safety
 
-Only entries marked `signal_engine_available` have an existing signal implementation. Research-only entries are educational knowledge and must never be treated as executable signals. A method becomes executable only after implementation, unit tests, realistic fees/slippage, no-lookahead checks, walk-forward/out-of-sample tests, and regime-specific evaluation.
+Only entries marked `implemented=true` have an existing signal implementation. Research-only entries are educational knowledge and must never be treated as executable signals. A method becomes executable only after implementation, unit tests, realistic fees/slippage, no-lookahead checks, walk-forward/out-of-sample tests, and regime-specific evaluation.
 
 The current executable set is the 20 methods in `nexus.strategy_lab.strategy_signals`. The larger catalogue does not mean the other methods have already been coded or validated.
 
