@@ -41,7 +41,7 @@ def test_walk_forward_first_fold_is_not_influenced_by_future_test_data():
         "never_in": np.zeros(len(market), dtype=bool),
     }
     baseline = walk_forward_evaluate(
-        market, candidates, train_size=6, test_size=3, fee=0, slippage=0
+        market, candidates, train_size=6, test_size=3, fee=0, slippage=0, min_trades=1
     )
     changed_future = market.copy()
     changed_future.loc[9:, ["open", "close", "ema20", "ema50"]] *= 4
