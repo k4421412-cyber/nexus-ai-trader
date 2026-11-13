@@ -187,6 +187,14 @@ def simulate_to_goal(
         curve[-1] = cash
 
     final_balance = cash
+    equity_peak = initial
+    max_drawdown_pct = 0.0
+    for equity_value in curve:
+        equity_peak = max(equity_peak, equity_value)
+        if equity_peak > 0:
+            max_drawdown_pct = max(
+                max_drawdown_pct, (equity_peak - equity_value) / equity_peak * 100
+            )
     return {
         "simulation_only": True,
         "live_orders_sent": False,
@@ -199,6 +207,7 @@ def simulate_to_goal(
         "final_balance": round(final_balance, 10),
         "net_pnl": round(final_balance - initial, 10),
         "net_return_pct": round((final_balance / initial - 1) * 100, 4),
+        "max_drawdown_pct": round(max_drawdown_pct, 4),
         "trades": len(trades),
         "win_rate_pct": round(sum(t["net_pnl"] > 0 for t in trades) / len(trades) * 100, 2) if trades else 0.0,
         "trade_log": trades,
