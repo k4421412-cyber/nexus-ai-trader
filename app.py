@@ -216,11 +216,12 @@ elif page == "کیف پول خودکار (آزمایشی)":
             st.error("حد توقف زیان فعال شد و شبیه‌سازی متوقف شد.")
         else:
             st.info("داده‌های تاریخی تمام شد؛ این نتیجه به معنی رسیدن به هدف نیست.")
-        a, b, c, d = st.columns(4)
+        a, b, c, d, e = st.columns(5)
         a.metric("موجودی نهایی مجازی", f'{result["final_balance"]:.4f} USDT')
         b.metric("هدف", f'{result["target_balance"]:.4f} USDT')
         c.metric("سود/زیان خالص", f'{result["net_pnl"]:+.4f} USDT')
-        d.metric("تعداد معاملات", result["trades"])
+        d.metric("بیشترین افت سرمایه", f'{result["max_drawdown_pct"]:.2f}%')
+        e.metric("تعداد معاملات", result["trades"])
         st.caption(f'بازار: {meta.get("exchange")} · {meta.get("symbol")} · {meta.get("timeframe")} · استراتژی: {meta.get("strategy")} · {meta.get("candles")} کندل بسته‌شده')
         curve = pd.DataFrame({
             "شماره کندل": range(len(result["equity_curve"])),
