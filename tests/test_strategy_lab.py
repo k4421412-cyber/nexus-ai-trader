@@ -28,6 +28,14 @@ def test_strategy_library_has_twenty_boolean_signal_pairs():
         assert exit_.dtype == bool
 
 
+def test_parabolic_sar_generates_causal_direction_reversals():
+    signals = strategy_signals(sample_market(500))
+    entry, exit_ = signals["Parabolic SAR"]
+    assert entry.any()
+    assert exit_.any()
+    assert not (entry & exit_).any()
+
+
 def test_all_strategy_signals_are_prefix_causal():
     market = sample_market(600)
     full = strategy_signals(market)
