@@ -146,6 +146,48 @@ def _indicators(df):
     ).mean()
     x["tsi"] = 100 * smoothed_momentum / smoothed_absolute.replace(0, np.nan)
     x["tsi_signal"] = x["tsi"].ewm(span=7, adjust=False, min_periods=7).mean()
+
+    # Parabolic SAR is calculated sequentially so no future candle can
+    # influence a prior stop or direction state.
+    psar = np.full(len(x), np.nan)
+    psar_direction = np.zeros(len(x), dtype=int)
+    if len(x) >= 2:
+        rising = close.iloc[1] >= close.iloc[0]
+        extreme = high.iloc[0] if rising else low.iloc[0]
+        psar[0] = low.iloc[0] if rising else high.iloc[0]
+        psar_direction[0] = 1 if rising else -1
+        acceleration = 0.02
+        for i in range(1, len(x)):
+            previous_sar = psar[i - 1]
+            if rising:
+                candidate = previous_sar + acceleration * (extreme - previous_sar)
+                candidate = min(candidate, low.iloc[i - 1], low.iloc[max(0, i - 2)])
+                if low.iloc[i] < candidate:
+                    rising = False
+                    psar[i] = extreme
+                    extreme = low.iloc[i]
+                    acceleration = 0.02
+                else:
+                    psar[i] = candidate
+                    if high.iloc[i] > extreme:
+                        extreme = high.iloc[i]
+                        acceleration = min(0.2, acceleration + 0.02)
+            else:
+                candidate = previous_sar + acceleration * (extreme - previous_sar)
+                candidate = max(candidate, high.iloc[i - 1], high.iloc[max(0, i - 2)])
+                if high.iloc[i] > candidate:
+                    rising = True
+                    psar[i] = extreme
+                    extreme = high.iloc[i]
+                    acceleration = 0.02
+                else:
+                    psar[i] = candidate
+                    if low.iloc[i] < extreme:
+                        extreme = low.iloc[i]
+                        acceleration = min(0.2, acceleration + 0.02)
+            psar_direction[i] = 1 if rising else -1
+    x["parabolic_sar"] = psar
+    x["parabolic_sar_direction"] = psar_direction
     return x
 
 
@@ -232,6 +274,10 @@ def strategy_signals(df):
     specs["True Strength Index"] = (
         (x.tsi > x.tsi_signal) & (x.tsi.shift(1) <= x.tsi_signal.shift(1)),
         x.tsi < x.tsi_signal
+    )
+    specs["Parabolic SAR"] = (
+        (x.parabolic_sar_direction > 0) & (x.parabolic_sar_direction.shift(1) < 0),
+        (x.parabolic_sar_direction < 0) & (x.parabolic_sar_direction.shift(1) > 0)
     )
     return {name: (entry.fillna(False).astype(bool), exit_.fillna(False).astype(bool)) for name, (entry, exit_) in specs.items()}
 
