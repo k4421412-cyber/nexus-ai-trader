@@ -123,6 +123,16 @@ def _indicators(df):
     x["ichimoku_cloud_top"] = pd.concat([span_a_visible, span_b_visible], axis=1).max(axis=1, skipna=False)
     x["ichimoku_cloud_bottom"] = pd.concat([span_a_visible, span_b_visible], axis=1).min(axis=1, skipna=False)
     x["ichimoku_chikou_confirm"] = close > high.shift(26)
+
+    typical_price = (high + low + close) / 3
+    typical_mean = typical_price.rolling(20).mean()
+    mean_deviation = typical_price.rolling(20).apply(
+        lambda values: np.mean(np.abs(values - np.mean(values))), raw=True
+    )
+    x["cci"] = (typical_price - typical_mean) / (0.015 * mean_deviation.replace(0, np.nan))
+    rolling_high = high.rolling(14).max()
+    rolling_low = low.rolling(14).min()
+    x["williams_r"] = -100 * (rolling_high - close) / (rolling_high - rolling_low).replace(0, np.nan)
     return x
 
 
@@ -193,6 +203,14 @@ def strategy_signals(df):
         & (x.ichimoku_tenkan.shift(1) <= x.ichimoku_kijun.shift(1))
         & x.ichimoku_chikou_confirm,
         (c < x.ichimoku_cloud_bottom) | (x.ichimoku_tenkan < x.ichimoku_kijun)
+    )
+    specs["CCI reversal"] = (
+        (x.cci > -100) & (x.cci.shift(1) <= -100),
+        x.cci > 100
+    )
+    specs["Williams %R"] = (
+        (x.williams_r > -80) & (x.williams_r.shift(1) <= -80),
+        x.williams_r > -20
     )
     return {name: (entry.fillna(False).astype(bool), exit_.fillna(False).astype(bool)) for name, (entry, exit_) in specs.items()}
 
