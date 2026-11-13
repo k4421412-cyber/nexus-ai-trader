@@ -168,6 +168,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
             item.get("exchange") == exchange
             and item.get("timeframe") == timeframe
             and str(item.get("symbol", "")).upper() == symbol.strip().upper()
+            and cross_meta.get("candles") == candle_limit
             for item in validated_datasets
         )
         replicated = cross_result.get("replicated_candidates_by_regime", {})
@@ -179,7 +180,7 @@ elif page == "کیف پول خودکار (آزمایشی)":
             st.caption(f"دامنه اعتبارسنجی شامل {len(validated_datasets)} ترکیب صرافی/نماد/تایم‌فریم است؛ بازار فعلی در این مجموعه وجود دارد.")
             st.write("نامزدهای فعال برای بازپخش:", strategy_by_regime)
         elif not same_validation_scope:
-            st.warning("برای جلوگیری از تعمیم بی‌پشتوانه، انتخاب خودکار فقط روی همان صرافی، تایم‌فریم و نمادی فعال می‌شود که در اعتبارسنجی چندنمادی حضور داشته باشد. اعتبارسنجی را با نماد فعلی و دست‌کم یک نماد دیگر تکرار کن.")
+            st.warning("برای جلوگیری از تعمیم بی‌پشتوانه، انتخاب خودکار فقط روی همان صرافی، نماد، تایم‌فریم و تعداد کندلی فعال می‌شود که در اعتبارسنجی چندبازاری حضور داشته باشد. اعتبارسنجی را با نماد فعلی و دست‌کم یک نماد دیگر تکرار کن.")
         else:
             st.warning("اعتبارسنجی چندنمادی نامزد مشترکی را تأیید نکرده است؛ در حالت خودکار معامله‌ای انجام نمی‌شود.")
     if st.button("اجرای شبیه‌سازی تا هدف یا حد زیان", type="primary", use_container_width=True):
