@@ -185,3 +185,34 @@ def test_forced_exit_deducts_final_fee_and_slippage_from_realized_metrics():
         (expected_balance / 1000 - 1) * 100,
     )
     assert result["equity_curve"][-1] == result["liquidation_balance"]
+
+
+
+def test_backtest_rejects_inconsistent_ohlc_and_non_chronological_timestamps():
+    market = pd.DataFrame({
+        "timestamp": [1000, 2000, 3000],
+        "open": [100.0, 101.0, 102.0],
+        "high": [101.0, 102.0, 103.0],
+        "low": [99.0, 100.0, 101.0],
+        "close": [100.0, 101.0, 102.0],
+    })
+    bad_ohlc = market.copy()
+    bad_ohlc.loc[1, "high"] = 99.0
+    with pytest.raises(ValueError, match="inconsistent"):
+        run_backtest(bad_ohlc, [False] * 3, [False] * 3)
+    bad_time = market.copy()
+    bad_time.loc[2, "timestamp"] = 1500
+    with pytest.raises(ValueError, match="chronological"):
+        run_backtest(bad_time, [False] * 3, [False] * 3)
+
+
+def test_regime_classifier_rejects_invalid_threshold_and_inconsistent_ohlc():
+    market = sample_market(250)
+    with pytest.raises(ValueError, match="ADX threshold"):
+        classify_market_regime(market, adx_threshold=float("nan"))
+    with pytest.raises(ValueError, match="ADX threshold"):
+        classify_market_regime(market, adx_threshold=101)
+    invalid = market.copy()
+    invalid.loc[10, "open"] = invalid.loc[10, "high"] * 2
+    with pytest.raises(ValueError, match="open prices"):
+        classify_market_regime(invalid)
