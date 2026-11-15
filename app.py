@@ -9,6 +9,7 @@ from nexus.evaluation import walk_forward_evaluate
 from nexus.dex import search_pairs
 from nexus.paper import PaperWallet
 from nexus.auto_wallet import simulate_to_goal
+from nexus.auto_discovery import discover_across_exchanges
 from nexus.strategy_knowledge import list_strategies, recommend_strategies
 from nexus.regime import detect_market_regime
 from nexus.strategy_selection import validate_regime_candidates, validate_across_markets
@@ -67,7 +68,7 @@ st.markdown("""
   <div class="nexus-sub">نسخه آزمایشی 0.3 · تحلیل بازار و معاملات مجازی</div>
 </div>
 """, unsafe_allow_html=True)
-pages = ["داشبورد", "کیف پول خودکار (آزمایشی)", "دانشنامه استراتژی‌ها", "انتخاب‌گر هوشمند استراتژی", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
+pages = ["داشبورد", "خلبان خودکار بازار (آزمایشی)", "کیف پول خودکار (آزمایشی)", "دانشنامه استراتژی‌ها", "انتخاب‌گر هوشمند استراتژی", "تحلیل بازار", "آزمایشگاه استراتژی", "مرکز سیگنال‌ها",
          "شکار توکن‌های DEX", "مرکز یادگیری", "سرمایه‌گذاری مشارکتی (آزمایشی)", "اتصالات", "تنظیمات و راهنما"]
 page = st.radio("بخش‌ها", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
 
@@ -122,6 +123,59 @@ if page == "داشبورد":
         ("⚡ مرکز سیگنال‌ها", "بررسی سیگنال‌های آموزشی"),
     ]:
         st.markdown('<div class="nexus-panel"><b>' + title + '</b><div class="nexus-muted">' + description + '</div></div>', unsafe_allow_html=True)
+
+elif page == "خلبان خودکار بازار (آزمایشی)":
+    st.subheader("خلبان خودکار بازار — اسکن و انتخاب نامزدها")
+    st.warning(
+        "این مرحله فقط بازارهای اسپات متمرکزِ Binance، OKX و Bybit را اسکن و رتبه‌بندی می‌کند. "
+        "هنوز معامله‌ای اجرا نمی‌شود و هیچ سودی پیش‌بینی یا تضمین نمی‌شود. اسکن توکن‌های DEX و میم‌کوین‌های تازه‌ساخته‌شده مرحله جداگانه بعدی است."
+    )
+    capital_amount = st.number_input(
+        "مبلغی که برای آزمایش در نظر گرفته‌ای (USDT)",
+        min_value=1.0, max_value=100000.0, value=10.0, step=1.0,
+        key="autopilot_demo_capital",
+    )
+    st.caption("در نسخه نهایی این تنها ورودی سرمایه‌گذار خواهد بود؛ محدودیت‌های ریسک و انتخاب بازار را خود سامانه مدیریت می‌کند و برای شفافیت نمایش می‌دهد.")
+    if st.button("اسکن خودکار بازارها", key="run_autonomous_market_scan", type="primary", use_container_width=True):
+        with st.spinner("در حال دریافت فهرست بازارها و بررسی نقدشوندگی و اختلاف قیمت..."):
+            scan = discover_across_exchanges(
+                ["binance", "okx", "bybit"],
+                min_quote_volume=1_000_000,
+                max_spread_pct=0.8,
+                max_candidates=30,
+            )
+        st.session_state["autonomous_market_scan"] = scan
+        st.session_state["autonomous_market_scan_capital"] = capital_amount
+    scan = st.session_state.get("autonomous_market_scan")
+    if scan:
+        st.markdown("### نتیجه اسکن")
+        a, b, c = st.columns(3)
+        a.metric("نامزدهای پیدا‌شده", len(scan["candidates"]))
+        b.metric("صرافی‌های بررسی‌شده", len(scan["scanned_exchanges"]))
+        c.metric("بودجه آزمایشی", f'{st.session_state.get("autonomous_market_scan_capital", capital_amount):,.2f} USDT')
+        if scan["errors"]:
+            st.warning("برخی منابع داده پاسخ ندادند: " + "، ".join(f"{name}: {reason}" for name, reason in scan["errors"].items()))
+        if scan["candidates"]:
+            display_rows = []
+            for rank, item in enumerate(scan["candidates"], start=1):
+                display_rows.append({
+                    "رتبه": rank,
+                    "صرافی": item["exchange"],
+                    "نماد": item["symbol"],
+                    "قیمت آخر": item["last"],
+                    "حجم ۲۴ ساعته (USDT)": item["quote_volume_24h"],
+                    "اختلاف خرید/فروش (%)": item["spread_pct"],
+                    "دامنه نوسان ۲۴ساعته (%)": item["range_24h_pct"],
+                    "امتیاز کشف": item["discovery_score"],
+                    "وضعیت": "فقط نامزد؛ تأیید معامله نشده",
+                })
+            st.dataframe(pd.DataFrame(display_rows), use_container_width=True, hide_index=True)
+            st.info("رتبه‌بندی فعلی بر پایه حجم، اختلاف قیمت و دامنه نوسان است؛ هنوز بک‌تست اختصاصی هر نماد، اعتبارسنجی خارج از نمونه و کنترل ریسک توکن انجام نشده است. هیچ‌کدام مجوز ورود نیستند.")
+        else:
+            st.warning("با معیارهای فعلی نامزد مناسبی پیدا نشد؛ ربات باید صبر کند، نه اینکه به‌زور معامله انتخاب کند.")
+        st.caption("دامنه فعلی: بازارهای اسپات USDT در سه صرافی متمرکز. قراردادهای مشتقه، توکن‌های اهرمی و استیبل‌کوین‌ها حذف می‌شوند. DEX و بررسی امنیت قرارداد در مرحله بعد اضافه می‌شوند.")
+    else:
+        st.info("فقط مبلغ آزمایشی را وارد کن و دکمه اسکن را بزن؛ نماد، صرافی و استراتژی را خودت انتخاب نمی‌کنی.")
 
 elif page == "کیف پول خودکار (آزمایشی)":
     st.subheader("کیف پول اختصاصی و معامله خودکار — فقط شبیه‌سازی")
