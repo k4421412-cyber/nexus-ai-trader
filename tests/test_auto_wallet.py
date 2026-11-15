@@ -154,3 +154,65 @@ def test_trade_fees_and_slippage_reduce_result():
                               max_position_pct=100, fee_pct=1, slippage_pct=1,
                               strategy_name="EMA 9/21 crossover")
     assert costly["final_balance"] < free["final_balance"]
+
+
+def test_intrabar_loss_barrier_triggers_before_candle_close(monkeypatch):
+    import nexus.auto_wallet as auto_wallet
+
+    market = sample_market()
+    market.loc[1, ["high", "low", "close"]] = [105, 80, 100]
+    entry = pd.Series([True] + [False] * (len(market) - 1))
+    no_exit = pd.Series([False] * len(market))
+    monkeypatch.setattr(
+        auto_wallet, "strategy_signals",
+        lambda _: {"EMA 9/21 crossover": (entry, no_exit)},
+    )
+    result = auto_wallet.simulate_to_goal(
+        market, initial_balance=100, target_balance=200,
+        max_loss_pct=10, max_position_pct=100, fee_pct=0, slippage_pct=0,
+        strategy_name="EMA 9/21 crossover",
+    )
+    assert result["status"] == "risk_limit_reached"
+    assert result["final_balance"] == pytest.approx(90)
+    assert result["trade_log"][0]["exit_reason"] == "intrabar_risk_limit"
+
+
+def test_intrabar_target_barrier_triggers_before_candle_close(monkeypatch):
+    import nexus.auto_wallet as auto_wallet
+
+    market = sample_market()
+    market.loc[1, ["high", "low", "close"]] = [120, 99, 105]
+    entry = pd.Series([True] + [False] * (len(market) - 1))
+    no_exit = pd.Series([False] * len(market))
+    monkeypatch.setattr(
+        auto_wallet, "strategy_signals",
+        lambda _: {"EMA 9/21 crossover": (entry, no_exit)},
+    )
+    result = auto_wallet.simulate_to_goal(
+        market, initial_balance=100, target_balance=110,
+        max_loss_pct=20, max_position_pct=100, fee_pct=0, slippage_pct=0,
+        strategy_name="EMA 9/21 crossover",
+    )
+    assert result["status"] == "target_reached"
+    assert result["final_balance"] == pytest.approx(110)
+    assert result["trade_log"][0]["exit_reason"] == "intrabar_target"
+
+
+def test_intrabar_stop_wins_when_both_barriers_hit_same_candle(monkeypatch):
+    import nexus.auto_wallet as auto_wallet
+
+    market = sample_market()
+    market.loc[1, ["high", "low", "close"]] = [120, 80, 100]
+    entry = pd.Series([True] + [False] * (len(market) - 1))
+    no_exit = pd.Series([False] * len(market))
+    monkeypatch.setattr(
+        auto_wallet, "strategy_signals",
+        lambda _: {"EMA 9/21 crossover": (entry, no_exit)},
+    )
+    result = auto_wallet.simulate_to_goal(
+        market, initial_balance=100, target_balance=110,
+        max_loss_pct=10, max_position_pct=100, fee_pct=0, slippage_pct=0,
+        strategy_name="EMA 9/21 crossover",
+    )
+    assert result["status"] == "risk_limit_reached"
+    assert result["trade_log"][0]["exit_reason"] == "intrabar_risk_limit"

@@ -37,8 +37,12 @@ def simulate_to_goal(
 
     In adaptive mode, the prior completed candle's regime chooses the method;
     an open position is closed at the next open when that regime changes.
-    Signals from candle i-1 execute at candle i open. The simulation is
-    long-only, applies fees/slippage on both sides, and never places live orders.
+    Signals from candle i-1 execute at candle i open. Account-level target and
+    loss barriers are checked against each candle's high/low after entry. If
+    both barriers are crossed in one candle, the loss barrier wins (conservative
+    OHLC assumption). Gaps fill at the candle open; otherwise barriers fill at
+    their trigger price, with fees/slippage applied. This remains a long-only
+    historical simulation and never places live orders.
     """
     initial = _finite_number(initial_balance, "Initial balance", minimum=0, strict_min=True)
     target = _finite_number(target_balance, "Target balance", minimum=0, strict_min=True)
@@ -169,16 +173,36 @@ def simulate_to_goal(
 
         marked_equity = cash + units * last_price
         curve.append(marked_equity)
-        if marked_equity >= target:
-            close_position(last_price, i, "target_liquidation")
-            curve[-1] = cash
-            status = "target_reached" if cash >= target else "target_touched_before_exit_costs"
-            stop_index = i
-            break
-        if marked_equity <= stop_balance:
-            close_position(last_price, i, "risk_limit_liquidation")
+
+        # Convert account-level barriers into executable prices. The threshold
+        # includes estimated exit fees and slippage, so the stop/goal is checked
+        # against net liquidation value rather than an unrealizable mark.
+        exit_factor = (1 - slippage) * (1 - fee)
+        stop_trigger = (
+            (stop_balance - cash) / (units * exit_factor)
+            if units > 0 and exit_factor > 0 else None
+        )
+        target_trigger = (
+            (target - cash) / (units * exit_factor)
+            if units > 0 and exit_factor > 0 else None
+        )
+        candle_low = float(candle["low"])
+        candle_high = float(candle["high"])
+
+        # OHLC bars do not reveal the order of intrabar price movements. When
+        # both barriers are touched, assume the adverse barrier happened first.
+        if stop_trigger is not None and stop_trigger > 0 and candle_low <= stop_trigger:
+            stop_fill = min(execution_open, stop_trigger)
+            close_position(stop_fill, i, "intrabar_risk_limit")
             curve[-1] = cash
             status = "risk_limit_reached"
+            stop_index = i
+            break
+        if target_trigger is not None and target_trigger > 0 and candle_high >= target_trigger:
+            target_fill = max(execution_open, target_trigger)
+            close_position(target_fill, i, "intrabar_target")
+            curve[-1] = cash
+            status = "target_reached" if cash >= target else "target_touched_before_exit_costs"
             stop_index = i
             break
 
