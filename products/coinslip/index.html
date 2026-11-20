@@ -58,7 +58,7 @@ function create(){
 }
 $('generate').addEventListener('click',create);
 $('clear').addEventListener('click',()=>{fields.forEach(k=>$(k).value='');$('print').disabled=true;$('download').disabled=true;window.currentInvoice=null});
-$('#copyWallet').addEventListener('click',async()=>{const v=$('pWallet').textContent;if(!/^0x[a-fA-F0-9]{40}$/.test(v)){ $('copyFeedback').textContent='No valid address';return;}try{await navigator.clipboard.writeText(v);$('copyFeedback').textContent='Address copied';}catch(e){$('copyFeedback').textContent='Copy unavailable — select address manually';}});
+$('copyWallet').addEventListener('click',async()=>{const v=$('pWallet').textContent;if(!/^0x[a-fA-F0-9]{40}$/.test(v)){ $('copyFeedback').textContent='No valid address';return;}try{await navigator.clipboard.writeText(v);$('copyFeedback').textContent='Address copied';}catch(e){$('copyFeedback').textContent='Copy unavailable — select address manually';}});
 $('print').addEventListener('click',()=>window.print());
 $('download').addEventListener('click',()=>{
  if(!window.currentInvoice)return;
