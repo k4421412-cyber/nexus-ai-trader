@@ -1,0 +1,30 @@
+name: CoinSlip quality checks
+
+on:
+  push:
+    branches:
+      - "product/**"
+    paths:
+      - "products/coinslip/**"
+      - ".github/workflows/coinslip.yml"
+  pull_request:
+    paths:
+      - "products/coinslip/**"
+      - ".github/workflows/coinslip.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate CoinSlip
+        run: python products/coinslip/tests/validate.py
