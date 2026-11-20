@@ -1,0 +1,11 @@
+{
+  "name": "CoinSlip — USDT Invoice Maker",
+  "short_name": "CoinSlip",
+  "description": "Create private, printable USDT payment invoices.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "icons": []
+}

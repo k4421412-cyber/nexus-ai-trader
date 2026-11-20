@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Create clean USDT payment invoices in seconds. No account, no custody, data stays in your browser.">\n<meta name="theme-color" content="#0b1020"><link rel="manifest" href="./manifest.webmanifest"><meta name="robots" content="index,follow">
+<title>CoinSlip — USDT Invoice Maker</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#131b30;--line:#263451;--muted:#9aa8c4;--text:#eef3ff;--mint:#5eead4;--blue:#8bb5ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 0%,#1b3150 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:1080px;margin:auto;padding:28px 18px 64px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}.brand{font-weight:850;font-size:23px;letter-spacing:-.7px}.brand span{color:var(--mint)}.tag{color:var(--muted);font-size:12px}
+.hero{margin:24px 0 28px}.hero h1{font-size:clamp(30px,5vw,48px);line-height:1.08;letter-spacing:-1.7px;margin:0 0 12px}.hero p{color:var(--muted);max-width:650px;margin:0}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.85fr);gap:18px}.panel{background:linear-gradient(180deg,#17223a,#111a2d);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 18px 55px #0003}.panel h2{font-size:17px;margin:0 0 18px}
+label{display:block;color:#c7d2e8;font-size:12px;font-weight:650;margin:13px 0 6px}input,select,textarea{width:100%;border:1px solid #30415f;background:#0c1426;color:var(--text);border-radius:10px;padding:12px;font:inherit;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--mint)}textarea{resize:vertical;min-height:72px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.btns{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}button{border:0;border-radius:10px;padding:11px 15px;font-weight:750;cursor:pointer;background:var(--mint);color:#06201e}button.secondary{background:#243451;color:var(--text);border:1px solid #35496c}button:disabled{opacity:.45;cursor:not-allowed}
+.preview{background:#f7f9ff;color:#152039;border-radius:14px;padding:22px;min-height:420px}.preview .muted{color:#66738d}.preview h3{font-size:22px;margin:4px 0 2px}.amount{font-size:35px;font-weight:850;letter-spacing:-1px;margin:18px 0 2px}.pill{display:inline-block;border:1px solid #c5d0e3;border-radius:30px;padding:4px 9px;font-size:11px;font-weight:800;color:#53627e}.details{border-top:1px solid #dce3ef;margin-top:18px;padding-top:10px}.detail{display:flex;justify-content:space-between;gap:14px;padding:7px 0;font-size:12px}.detail b{text-align:right;overflow-wrap:anywhere;max-width:65%}.wallet{background:#eaf0fb;padding:12px;border-radius:9px;font:11px/1.6 ui-monospace,monospace;overflow-wrap:anywhere;margin-top:8px}.notice{font-size:11px;color:#68758b;margin-top:14px}.foot{color:var(--muted);font-size:12px;margin-top:22px}.hide{display:none!important}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.top{align-items:flex-start;gap:12px;flex-direction:column}.panel{padding:17px}}@media print{body{background:white;color:#111}.top,.hero,.form-panel,.foot{display:none!important}main{padding:0}.layout{display:block}.panel{border:0;box-shadow:none;padding:0}.preview{border:0;min-height:0}}
+</style></head>
+<body><main>
+<header class="top"><div class="brand">Coin<span>Slip</span></div><div class="tag">PRIVATE BY DESIGN · NO SIGN-UP · NO CUSTODY</div></header>
+<section class="hero"><h1>Get paid in crypto.<br><span style="color:var(--mint)">Keep it simple.</span></h1><p>Create a clear, printable USDT invoice for clients in seconds. Your invoice details stay on this device; CoinSlip never asks for your wallet keys.</p></section>
+<section class="layout">
+<div class="panel form-panel"><h2>Invoice details</h2>
+<label for="seller">Your name / business</label><input id="seller" placeholder="e.g. Khaled Studio">
+<label for="client">Bill to</label><input id="client" placeholder="Client or company name">
+<div class="two"><div><label for="amount">Amount (USDT)</label><input id="amount" type="number" min="0.000001" max="1000000000" step="0.000001" inputmode="decimal" placeholder="25.00"><p class="notice" style="margin:5px 0 0">Up to 6 decimal places. The exact entered amount is preserved.</p></div><div><label for="network">Network</label><select id="network"><option value="BSC">BNB Smart Chain (BEP20)</option><option value="ETH">Ethereum (ERC20)</option></select></div></div>
+<label for="wallet">Receiving wallet address</label><input id="wallet" spellcheck="false" placeholder="0x…">
+<div class="two"><div><label for="invoice">Invoice number</label><input id="invoice" placeholder="CS-0001"></div><div><label for="due">Due date</label><input id="due" type="date"></div></div>
+<label for="note">Description / note</label><textarea id="note" placeholder="What is this payment for?"></textarea>
+<div class="btns"><button id="generate">Create invoice</button><button class="secondary" id="saveDraft">Save on this device</button><button class="secondary" id="loadDraft">Load saved draft</button><button class="secondary" id="clear">Clear</button></div><p class="notice">Saved drafts stay in this browser on this device. Do not use shared or public devices for private client information.</p>
+</div>
+<div class="panel"><h2>Live preview</h2><article class="preview" id="paper">
+<div class="muted" style="font-size:11px;font-weight:800;letter-spacing:1.3px">PAYMENT INVOICE</div><h3 id="pSeller">Your business</h3><div class="muted" id="pInvoice">Invoice #—</div>
+<div class="amount"><span id="pAmount">0.00</span> <span style="font-size:15px">USDT</span></div><span class="pill" id="pStatus">AWAITING PAYMENT</span>
+<div class="details"><div class="detail"><span class="muted">Billed to</span><b id="pClient">—</b></div><div class="detail"><span class="muted">Network</span><b id="pNetwork">BNB Smart Chain (BEP20)</b></div><div class="detail"><span class="muted">Due date</span><b id="pDue">—</b></div><div class="detail"><span class="muted">Description</span><b id="pNote">—</b></div></div>
+<div style="margin-top:18px;font-size:11px;font-weight:800">SEND EXACTLY <span id="pExact">0.00</span> USDT TO</div><div class="wallet" id="pWallet">Add a receiving address to create your invoice.</div>
+<button class="secondary" id="copyWallet" type="button" style="margin-top:10px;background:#eaf0fb;color:#152039;border-color:#c5d0e3">Copy wallet address</button><span id="copyFeedback" aria-live="polite" style="font-size:11px;margin-left:8px"></span>
+<div class="notice">Only send USDT on the network shown above. Always verify the recipient address and transaction on the relevant block explorer. Payment is not verified by this invoice.</div>
+</article>
+<div class="btns"><button id="print" class="secondary" disabled>Print / Save PDF</button><button id="download" class="secondary" disabled>Download JSON</button><button id="downloadCsv" class="secondary" disabled>Download CSV</button><button id="copyDetails" class="secondary" disabled>Copy payment details</button></div>
+</div></section>
+<p class="foot">CoinSlip is an independent invoice formatter, not a wallet or payment processor. It does not hold funds, monitor transfers, or guarantee payment. Check the token contract and network before sending.<br><a href="./privacy.html" style="color:var(--mint)">Privacy</a> · <a href="./terms.html" style="color:var(--mint)">Terms</a></p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const fields=['seller','client','amount','network','wallet','invoice','due','note'];
+function validAddress(v){return /^0x[a-fA-F0-9]{40}$/.test(v.trim())}
+function create(){
+ const d=Object.fromEntries(fields.map(k=>[k,$(k).value.trim()]));
+ const amountText=d.amount;
+ const amount=Number(amountText);
+ if(!d.seller||!amountText||!Number.isFinite(amount)||amount<=0||!validAddress(d.wallet)){alert('Enter a business name, a valid amount, and a valid 0x wallet address.');return}
+ if(amount>1000000000||!/^\d+(?:\.\d{1,6})?$/.test(amountText)){alert('Use a positive amount up to 1,000,000,000 with no more than 6 decimal places.');return}
+ const exactAmount=amountText.replace(/^(\d+)\.(\d*?)0+$/,'$1.$2').replace(/\.$/,'');
+ const invoice={...d,amount:exactAmount,currency:'USDT',createdAt:new Date().toISOString(),status:'UNVERIFIED — AWAITING PAYMENT',version:1};
+ $('pSeller').textContent=d.seller;$('pInvoice').textContent='Invoice #'+(d.invoice||'—');$('pAmount').textContent=invoice.amount;$('pExact').textContent=invoice.amount;
+ $('pClient').textContent=d.client||'—';$('pNetwork').textContent=d.network==='BSC'?'BNB Smart Chain (BEP20)':'Ethereum (ERC20)';
+ $('pDue').textContent=d.due||'—';$('pNote').textContent=d.note||'—';$('pWallet').textContent=d.wallet;
+ $('print').disabled=false;$('download').disabled=false;$('downloadCsv').disabled=false;$('copyDetails').disabled=false;
+ window.currentInvoice=invoice;
+}
+$('generate').addEventListener('click',create);
+$('saveDraft').addEventListener('click',()=>{try{const d=Object.fromEntries(fields.map(k=>[k,$(k).value]));localStorage.setItem('coinslip-draft-v1',JSON.stringify(d));alert('Draft saved in this browser.');}catch(e){alert('This browser does not allow local saving.');}});
+$('loadDraft').addEventListener('click',()=>{try{const raw=localStorage.getItem('coinslip-draft-v1');if(!raw){alert('No saved draft found on this device.');return;}const d=JSON.parse(raw);fields.forEach(k=>{if(typeof d[k]==='string')$(k).value=d[k];});create();}catch(e){alert('Saved draft could not be loaded.');}});
+$('clear').addEventListener('click',()=>{fields.forEach(k=>$(k).value='');$('print').disabled=true;$('download').disabled=true;$('downloadCsv').disabled=true;$('copyDetails').disabled=true;window.currentInvoice=null;$('pSeller').textContent='Your business';$('pInvoice').textContent='Invoice #—';$('pAmount').textContent='0.00';$('pExact').textContent='0.00';$('pClient').textContent='—';$('pNetwork').textContent='BNB Smart Chain (BEP20)';$('pDue').textContent='—';$('pNote').textContent='—';$('pWallet').textContent='Add a receiving address to create your invoice.';});
+$('copyWallet').addEventListener('click',async()=>{const v=$('pWallet').textContent;if(!/^0x[a-fA-F0-9]{40}$/.test(v)){ $('copyFeedback').textContent='No valid address';return;}try{await navigator.clipboard.writeText(v);$('copyFeedback').textContent='Address copied';}catch(e){$('copyFeedback').textContent='Copy unavailable — select address manually';}});
+$('print').addEventListener('click',()=>window.print());
+$('download').addEventListener('click',()=>{
+ if(!window.currentInvoice)return;
+ const blob=new Blob([JSON.stringify(window.currentInvoice,null,2)],{type:'application/json'});
+ const safeName=(window.currentInvoice.invoice||'coinslip-invoice').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,60)||'coinslip-invoice';
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=safeName+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+$('downloadCsv').addEventListener('click',()=>{if(!window.currentInvoice)return;const inv=window.currentInvoice;const rows=[['Field','Value'],...Object.entries(inv)];const csv=rows.map(row=>row.map(v=>{let value=String(v??'');if(/^[\\s]*[=+@-]/.test(value))value="'"+value;return '"'+value.replace(/"/g,'""')+'"';}).join(',')).join('\r\n');const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});const safeName=(inv.invoice||'coinslip-invoice').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,60)||'coinslip-invoice';const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=safeName+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+$('copyDetails').addEventListener('click',async()=>{if(!window.currentInvoice)return;const inv=window.currentInvoice;const network=inv.network==='BSC'?'BNB Smart Chain (BEP20)':'Ethereum (ERC20)';const details=['USDT PAYMENT REQUEST','Invoice: '+(inv.invoice||'—'),'Amount: '+inv.amount+' USDT','Network: '+network,'Wallet: '+inv.wallet,'Due: '+(inv.due||'—'),'Description: '+(inv.note||'—'),'Status: NOT VERIFIED — confirm the transaction on-chain before marking paid.'].join('\n');try{await navigator.clipboard.writeText(details);alert('Payment details copied.');}catch(e){alert('Clipboard unavailable. Use the invoice print or export options.');}});
+$('invoice').value='CS-'+String(Math.floor(Date.now()/1000)).slice(-6);
+</script></body></html>
