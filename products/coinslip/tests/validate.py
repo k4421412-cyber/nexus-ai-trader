@@ -23,6 +23,8 @@ assert "Payment is not verified by this invoice." in HTML, "Payment disclaimer m
 assert "no more than 6 decimal places" in HTML, "Six-decimal precision validation missing"
 assert "downloadCsv" in HTML and "text/csv" in HTML, "CSV export missing"
 assert "copyDetails" in HTML and "NOT VERIFIED" in HTML, "Payment-details copy warning missing"
+assert "formula injection" in HTML.lower() or "/^[\\\\s]*[=+@-]/" in HTML, "CSV spreadsheet-formula protection missing"
+assert "replace(/[^a-zA-Z0-9_-]/g" in HTML, "Export filename sanitization missing"
 assert "private key" not in HTML.lower(), "App must never request private keys"
 
 scripts = re.findall(r"<script>(.*?)</script>", HTML, flags=re.S)
