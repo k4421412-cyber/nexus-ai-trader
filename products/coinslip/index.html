@@ -22,7 +22,7 @@ label{display:block;color:#c7d2e8;font-size:12px;font-weight:650;margin:13px 0 6
 <div class="panel form-panel"><h2>Invoice details</h2>
 <label for="seller">Your name / business</label><input id="seller" placeholder="e.g. Khaled Studio">
 <label for="client">Bill to</label><input id="client" placeholder="Client or company name">
-<div class="two"><div><label for="amount">Amount (USDT)</label><input id="amount" type="number" min="0.01" step="0.01" placeholder="25.00"></div><div><label for="network">Network</label><select id="network"><option value="BSC">BNB Smart Chain (BEP20)</option><option value="ETH">Ethereum (ERC20)</option></select></div></div>
+<div class="two"><div><label for="amount">Amount (USDT)</label><input id="amount" type="number" min="0.000001" max="1000000000" step="0.000001" inputmode="decimal" placeholder="25.00"><p class="notice" style="margin:5px 0 0">Up to 6 decimal places. The exact entered amount is preserved.</p></div><div><label for="network">Network</label><select id="network"><option value="BSC">BNB Smart Chain (BEP20)</option><option value="ETH">Ethereum (ERC20)</option></select></div></div>
 <label for="wallet">Receiving wallet address</label><input id="wallet" spellcheck="false" placeholder="0x…">
 <div class="two"><div><label for="invoice">Invoice number</label><input id="invoice" placeholder="CS-0001"></div><div><label for="due">Due date</label><input id="due" type="date"></div></div>
 <label for="note">Description / note</label><textarea id="note" placeholder="What is this payment for?"></textarea>
@@ -36,7 +36,7 @@ label{display:block;color:#c7d2e8;font-size:12px;font-weight:650;margin:13px 0 6
 <button class="secondary" id="copyWallet" type="button" style="margin-top:10px;background:#eaf0fb;color:#152039;border-color:#c5d0e3">Copy wallet address</button><span id="copyFeedback" aria-live="polite" style="font-size:11px;margin-left:8px"></span>
 <div class="notice">Only send USDT on the network shown above. Always verify the recipient address and transaction on the relevant block explorer. Payment is not verified by this invoice.</div>
 </article>
-<div class="btns"><button id="print" class="secondary" disabled>Print / Save PDF</button><button id="download" class="secondary" disabled>Download JSON</button></div>
+<div class="btns"><button id="print" class="secondary" disabled>Print / Save PDF</button><button id="download" class="secondary" disabled>Download JSON</button><button id="downloadCsv" class="secondary" disabled>Download CSV</button><button id="copyDetails" class="secondary" disabled>Copy payment details</button></div>
 </div></section>
 <p class="foot">CoinSlip is an independent invoice formatter, not a wallet or payment processor. It does not hold funds, monitor transfers, or guarantee payment. Check the token contract and network before sending.</p>
 </main>
@@ -46,20 +46,22 @@ const fields=['seller','client','amount','network','wallet','invoice','due','not
 function validAddress(v){return /^0x[a-fA-F0-9]{40}$/.test(v.trim())}
 function create(){
  const d=Object.fromEntries(fields.map(k=>[k,$(k).value.trim()]));
- const amount=Number(d.amount);
- if(!d.seller||!d.amount||!Number.isFinite(amount)||amount<=0||!validAddress(d.wallet)){alert('Enter a business name, a valid amount, and a valid 0x wallet address.');return}
- if(amount>1000000000){alert('Amount is outside the supported range.');return}
- const invoice={...d,amount:amount.toFixed(2),currency:'USDT',createdAt:new Date().toISOString(),status:'UNVERIFIED — AWAITING PAYMENT',version:1};
+ const amountText=d.amount;
+ const amount=Number(amountText);
+ if(!d.seller||!amountText||!Number.isFinite(amount)||amount<=0||!validAddress(d.wallet)){alert('Enter a business name, a valid amount, and a valid 0x wallet address.');return}
+ if(amount>1000000000||!/^\\d+(?:\\.\\d{1,6})?$/.test(amountText)){alert('Use a positive amount up to 1,000,000,000 with no more than 6 decimal places.');return}
+ const exactAmount=amountText.replace(/^(\\d+)\\.(\\d*?)0+$/,'$1.$2').replace(/\\.$/,'');
+ const invoice={...d,amount:exactAmount,currency:'USDT',createdAt:new Date().toISOString(),status:'UNVERIFIED — AWAITING PAYMENT',version:1};
  $('pSeller').textContent=d.seller;$('pInvoice').textContent='Invoice #'+(d.invoice||'—');$('pAmount').textContent=invoice.amount;$('pExact').textContent=invoice.amount;
  $('pClient').textContent=d.client||'—';$('pNetwork').textContent=d.network==='BSC'?'BNB Smart Chain (BEP20)':'Ethereum (ERC20)';
  $('pDue').textContent=d.due||'—';$('pNote').textContent=d.note||'—';$('pWallet').textContent=d.wallet;
- $('print').disabled=false;$('download').disabled=false;
+ $('print').disabled=false;$('download').disabled=false;$('downloadCsv').disabled=false;$('copyDetails').disabled=false;
  window.currentInvoice=invoice;
 }
 $('generate').addEventListener('click',create);
 $('saveDraft').addEventListener('click',()=>{try{const d=Object.fromEntries(fields.map(k=>[k,$(k).value]));localStorage.setItem('coinslip-draft-v1',JSON.stringify(d));alert('Draft saved in this browser.');}catch(e){alert('This browser does not allow local saving.');}});
 $('loadDraft').addEventListener('click',()=>{try{const raw=localStorage.getItem('coinslip-draft-v1');if(!raw){alert('No saved draft found on this device.');return;}const d=JSON.parse(raw);fields.forEach(k=>{if(typeof d[k]==='string')$(k).value=d[k];});create();}catch(e){alert('Saved draft could not be loaded.');}});
-$('clear').addEventListener('click',()=>{fields.forEach(k=>$(k).value='');$('print').disabled=true;$('download').disabled=true;window.currentInvoice=null});
+$('clear').addEventListener('click',()=>{fields.forEach(k=>$(k).value='');$('print').disabled=true;$('download').disabled=true;$('downloadCsv').disabled=true;$('copyDetails').disabled=true;window.currentInvoice=null;$('pSeller').textContent='Your business';$('pInvoice').textContent='Invoice #—';$('pAmount').textContent='0.00';$('pExact').textContent='0.00';$('pClient').textContent='—';$('pNetwork').textContent='BNB Smart Chain (BEP20)';$('pDue').textContent='—';$('pNote').textContent='—';$('pWallet').textContent='Add a receiving address to create your invoice.';});
 $('copyWallet').addEventListener('click',async()=>{const v=$('pWallet').textContent;if(!/^0x[a-fA-F0-9]{40}$/.test(v)){ $('copyFeedback').textContent='No valid address';return;}try{await navigator.clipboard.writeText(v);$('copyFeedback').textContent='Address copied';}catch(e){$('copyFeedback').textContent='Copy unavailable — select address manually';}});
 $('print').addEventListener('click',()=>window.print());
 $('download').addEventListener('click',()=>{
@@ -67,5 +69,7 @@ $('download').addEventListener('click',()=>{
  const blob=new Blob([JSON.stringify(window.currentInvoice,null,2)],{type:'application/json'});
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(window.currentInvoice.invoice||'coinslip-invoice')+'.json';a.click();URL.revokeObjectURL(url);
 });
+$('downloadCsv').addEventListener('click',()=>{if(!window.currentInvoice)return;const inv=window.currentInvoice;const rows=[['Field','Value'],...Object.entries(inv)];const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(inv.invoice||'coinslip-invoice')+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+$('copyDetails').addEventListener('click',async()=>{if(!window.currentInvoice)return;const inv=window.currentInvoice;const network=inv.network==='BSC'?'BNB Smart Chain (BEP20)':'Ethereum (ERC20)';const details=['USDT PAYMENT REQUEST','Invoice: '+(inv.invoice||'—'),'Amount: '+inv.amount+' USDT','Network: '+network,'Wallet: '+inv.wallet,'Due: '+(inv.due||'—'),'Description: '+(inv.note||'—'),'Status: NOT VERIFIED — confirm the transaction on-chain before marking paid.'].join('\n');try{await navigator.clipboard.writeText(details);alert('Payment details copied.');}catch(e){alert('Clipboard unavailable. Use the invoice print or export options.');}});
 $('invoice').value='CS-'+String(Math.floor(Date.now()/1000)).slice(-6);
 </script></body></html>
