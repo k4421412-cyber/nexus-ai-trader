@@ -11,7 +11,7 @@ HTML = (ROOT / "index.html").read_text(encoding="utf-8")
 required_ids = {
     "seller", "client", "amount", "network", "wallet", "invoice", "due",
     "note", "generate", "saveDraft", "loadDraft", "clear", "paper",
-    "copyWallet", "print", "download", "pSeller", "pAmount", "pWallet",
+    "copyWallet", "print", "download", "downloadCsv", "copyDetails", "pSeller", "pAmount", "pWallet",
 }
 ids = set(re.findall(r'\bid=["\']([^"\']+)["\']', HTML))
 missing = sorted(required_ids - ids)
@@ -20,6 +20,9 @@ assert HTML.count('id="') == len(ids), "Duplicate HTML id attributes detected"
 assert "localStorage.setItem('coinslip-draft-v1'" in HTML, "Local draft save missing"
 assert "UNVERIFIED — AWAITING PAYMENT" in HTML, "Unverified-payment warning missing"
 assert "Payment is not verified by this invoice." in HTML, "Payment disclaimer missing"
+assert "no more than 6 decimal places" in HTML, "Six-decimal precision validation missing"
+assert "downloadCsv" in HTML and "text/csv" in HTML, "CSV export missing"
+assert "copyDetails" in HTML and "NOT VERIFIED" in HTML, "Payment-details copy warning missing"
 assert "private key" not in HTML.lower(), "App must never request private keys"
 
 scripts = re.findall(r"<script>(.*?)</script>", HTML, flags=re.S)
