@@ -1,22 +1,37 @@
-# CoinSlip — USDT Invoice Maker
+# CoinSlip
 
-A lightweight, mobile-friendly invoice creator for freelancers and small businesses that accept USDT.
+A privacy-first, browser-only USDT invoice formatter. It creates a printable invoice and a JSON record; it does **not** custody funds, verify transfers, or act as a payment processor.
 
-## What it does
-- Creates a printable invoice and a downloadable JSON record.
-- Supports BNB Smart Chain (BEP20) and Ethereum (ERC20) labels.
-- Validates the recipient's EVM address format and amount.
-- Runs entirely in the browser; no account, backend, analytics, wallet connection, or private keys.
-- Keeps payment status explicitly **unverified**. It does not claim to detect or confirm transfers.
+## Current features
+
+- USDT invoices for BNB Smart Chain (BEP20) and Ethereum (ERC20)
+- Client-side preview, print / Save as PDF, and JSON export
+- Optional local draft saving (browser storage only)
+- Basic EVM address and amount validation
+- No accounts, API keys, wallet connection, or private-key collection
 
 ## Run locally
-Open `index.html` in any modern browser. No build step or dependencies.
 
-## Safety
-CoinSlip is not a wallet or payment processor. It never receives funds or asks for seed phrases. Always verify the token contract, network, recipient address, and transaction independently. A valid-looking address does not prove ownership or payment.
+Open `index.html` in a modern browser. No build step or server is required.
 
-## Product status
-MVP prototype. Not yet deployed, monetized, or connected to an automated payment-verification service. No revenue is claimed.
+## Publish as a static site
 
-## License
-MIT
+The app is a static HTML file and can be hosted on any static-site host. The repository includes a GitHub Actions smoke-check workflow. A successful check does not itself publish the site; GitHub Pages must be enabled for the repository and configured to deploy the selected branch or workflow.
+
+## Safety and limitations
+
+- An EVM address format check cannot prove that an address belongs to the intended person.
+- The invoice does not check on-chain payments. Never mark an invoice paid based only on a screenshot or message.
+- The sender must select the exact network shown on the invoice.
+- Drafts are stored unencrypted in the current browser profile. Do not save sensitive customer data on a shared device.
+- CoinSlip is not affiliated with Tether or any wallet provider.
+
+## Quality checks
+
+Run:
+
+```bash
+python products/coinslip/tests/validate.py
+```
+
+The check uses Python's standard library and Node.js only.
