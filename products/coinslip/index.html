@@ -33,6 +33,7 @@ label{display:block;color:#c7d2e8;font-size:12px;font-weight:650;margin:13px 0 6
 <div class="amount"><span id="pAmount">0.00</span> <span style="font-size:15px">USDT</span></div><span class="pill" id="pStatus">AWAITING PAYMENT</span>
 <div class="details"><div class="detail"><span class="muted">Billed to</span><b id="pClient">—</b></div><div class="detail"><span class="muted">Network</span><b id="pNetwork">BNB Smart Chain (BEP20)</b></div><div class="detail"><span class="muted">Due date</span><b id="pDue">—</b></div><div class="detail"><span class="muted">Description</span><b id="pNote">—</b></div></div>
 <div style="margin-top:18px;font-size:11px;font-weight:800">SEND EXACTLY <span id="pExact">0.00</span> USDT TO</div><div class="wallet" id="pWallet">Add a receiving address to create your invoice.</div>
+<button class="secondary" id="copyWallet" type="button" style="margin-top:10px;background:#eaf0fb;color:#152039;border-color:#c5d0e3">Copy wallet address</button><span id="copyFeedback" aria-live="polite" style="font-size:11px;margin-left:8px"></span>
 <div class="notice">Only send USDT on the network shown above. Always verify the recipient address and transaction on the relevant block explorer. Payment is not verified by this invoice.</div>
 </article>
 <div class="btns"><button id="print" class="secondary" disabled>Print / Save PDF</button><button id="download" class="secondary" disabled>Download JSON</button></div>
@@ -57,6 +58,7 @@ function create(){
 }
 $('generate').addEventListener('click',create);
 $('clear').addEventListener('click',()=>{fields.forEach(k=>$(k).value='');$('print').disabled=true;$('download').disabled=true;window.currentInvoice=null});
+$('#copyWallet').addEventListener('click',async()=>{const v=$('pWallet').textContent;if(!/^0x[a-fA-F0-9]{40}$/.test(v)){ $('copyFeedback').textContent='No valid address';return;}try{await navigator.clipboard.writeText(v);$('copyFeedback').textContent='Address copied';}catch(e){$('copyFeedback').textContent='Copy unavailable — select address manually';}});
 $('print').addEventListener('click',()=>window.print());
 $('download').addEventListener('click',()=>{
  if(!window.currentInvoice)return;
