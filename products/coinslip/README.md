@@ -7,7 +7,9 @@ A privacy-first, browser-only USDT invoice formatter. It creates a printable inv
 - USDT invoices for BNB Smart Chain (BEP20) and Ethereum (ERC20)
 - Client-side preview, print / Save as PDF, and JSON export
 - Optional local draft saving (browser storage only)
-- Basic EVM address and amount validation
+- Basic EVM address validation and USDT amount precision up to 6 decimal places
+- CSV export for spreadsheet workflows
+- One-click copy of payment instructions with an explicit unverified-payment warning
 - No accounts, API keys, wallet connection, or private-key collection
 
 ## Run locally
