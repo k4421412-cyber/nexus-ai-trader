@@ -26,7 +26,7 @@ label{display:block;color:#c7d2e8;font-size:12px;font-weight:650;margin:13px 0 6
 <label for="wallet">Receiving wallet address</label><input id="wallet" spellcheck="false" placeholder="0x…">
 <div class="two"><div><label for="invoice">Invoice number</label><input id="invoice" placeholder="CS-0001"></div><div><label for="due">Due date</label><input id="due" type="date"></div></div>
 <label for="note">Description / note</label><textarea id="note" placeholder="What is this payment for?"></textarea>
-<div class="btns"><button id="generate">Create invoice</button><button class="secondary" id="clear">Clear</button></div>
+<div class="btns"><button id="generate">Create invoice</button><button class="secondary" id="saveDraft">Save on this device</button><button class="secondary" id="loadDraft">Load saved draft</button><button class="secondary" id="clear">Clear</button></div><p class="notice">Saved drafts stay in this browser on this device. Do not use shared or public devices for private client information.</p>
 </div>
 <div class="panel"><h2>Live preview</h2><article class="preview" id="paper">
 <div class="muted" style="font-size:11px;font-weight:800;letter-spacing:1.3px">PAYMENT INVOICE</div><h3 id="pSeller">Your business</h3><div class="muted" id="pInvoice">Invoice #—</div>
@@ -57,6 +57,8 @@ function create(){
  window.currentInvoice=invoice;
 }
 $('generate').addEventListener('click',create);
+$('saveDraft').addEventListener('click',()=>{try{const d=Object.fromEntries(fields.map(k=>[k,$(k).value]));localStorage.setItem('coinslip-draft-v1',JSON.stringify(d));alert('Draft saved in this browser.');}catch(e){alert('This browser does not allow local saving.');}});
+$('loadDraft').addEventListener('click',()=>{try{const raw=localStorage.getItem('coinslip-draft-v1');if(!raw){alert('No saved draft found on this device.');return;}const d=JSON.parse(raw);fields.forEach(k=>{if(typeof d[k]==='string')$(k).value=d[k];});create();}catch(e){alert('Saved draft could not be loaded.');}});
 $('clear').addEventListener('click',()=>{fields.forEach(k=>$(k).value='');$('print').disabled=true;$('download').disabled=true;window.currentInvoice=null});
 $('copyWallet').addEventListener('click',async()=>{const v=$('pWallet').textContent;if(!/^0x[a-fA-F0-9]{40}$/.test(v)){ $('copyFeedback').textContent='No valid address';return;}try{await navigator.clipboard.writeText(v);$('copyFeedback').textContent='Address copied';}catch(e){$('copyFeedback').textContent='Copy unavailable — select address manually';}});
 $('print').addEventListener('click',()=>window.print());
