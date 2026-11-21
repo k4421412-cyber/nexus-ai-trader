@@ -14,7 +14,7 @@ SERVICE_WORKER = (ROOT / "sw.js").read_text(encoding="utf-8")
 required_ids = {
     "seller", "client", "amount", "network", "wallet", "invoice", "due",
     "note", "generate", "saveDraft", "loadDraft", "clear", "paper",
-    "copyWallet", "print", "download", "downloadCsv", "copyDetails", "pSeller", "pAmount", "pWallet",
+    "copyWallet", "explorerLink", "print", "download", "downloadCsv", "copyDetails", "pSeller", "pAmount", "pWallet",
 }
 ids = set(re.findall(r'\bid=["\']([^"\']+)["\']', HTML))
 missing = sorted(required_ids - ids)
@@ -26,6 +26,8 @@ assert "Payment is not verified by this invoice." in HTML, "Payment disclaimer m
 assert "no more than 6 decimal places" in HTML, "Six-decimal precision validation missing"
 assert "downloadCsv" in HTML and "text/csv" in HTML, "CSV export missing"
 assert "copyDetails" in HTML and "NOT VERIFIED" in HTML, "Payment-details copy warning missing"
+assert "bscscan.com/address/" in HTML and "etherscan.io/address/" in HTML, "Network-specific address explorer links missing"
+assert 'rel="noopener noreferrer"' in HTML, "External explorer links must be isolated from the opener"
 assert "formula injection" in HTML.lower() or "/^[\\\\s]*[=+@-]/" in HTML, "CSV spreadsheet-formula protection missing"
 assert "replace(/[^a-zA-Z0-9_-]/g" in HTML, "Export filename sanitization missing"
 assert "private key" not in HTML.lower(), "App must never request private keys"
