@@ -29,6 +29,8 @@ assert "copyDetails" in HTML and "NOT VERIFIED" in HTML, "Payment-details copy w
 assert "formula injection" in HTML.lower() or "/^[\\\\s]*[=+@-]/" in HTML, "CSV spreadsheet-formula protection missing"
 assert "replace(/[^a-zA-Z0-9_-]/g" in HTML, "Export filename sanitization missing"
 assert "private key" not in HTML.lower(), "App must never request private keys"
+assert 'navigator.serviceWorker.register("./sw.js")' in HTML, "Service worker registration missing"
+assert ".panel > .btns,#copyWallet" in HTML, "Print output should hide app controls"
 assert 'href="./manifest.webmanifest"' in HTML, "PWA manifest link missing"
 assert 'href="./icon.svg"' in HTML, "App icon link missing"
 assert MANIFEST.get("name") == "CoinSlip — USDT Invoice Maker", "PWA name missing"
