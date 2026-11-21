@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Dependency-free smoke checks for the CoinSlip static app."""
 from pathlib import Path
+import json
 import re
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "index.html").read_text(encoding="utf-8")
+MANIFEST = json.loads((ROOT / "manifest.webmanifest").read_text(encoding="utf-8"))
+SERVICE_WORKER = (ROOT / "sw.js").read_text(encoding="utf-8")
 
 required_ids = {
     "seller", "client", "amount", "network", "wallet", "invoice", "due",
@@ -26,6 +29,15 @@ assert "copyDetails" in HTML and "NOT VERIFIED" in HTML, "Payment-details copy w
 assert "formula injection" in HTML.lower() or "/^[\\\\s]*[=+@-]/" in HTML, "CSV spreadsheet-formula protection missing"
 assert "replace(/[^a-zA-Z0-9_-]/g" in HTML, "Export filename sanitization missing"
 assert "private key" not in HTML.lower(), "App must never request private keys"
+assert 'href="./manifest.webmanifest"' in HTML, "PWA manifest link missing"
+assert 'href="./icon.svg"' in HTML, "App icon link missing"
+assert MANIFEST.get("name") == "CoinSlip — USDT Invoice Maker", "PWA name missing"
+assert MANIFEST.get("icons"), "PWA install icon missing"
+for icon in MANIFEST["icons"]:
+    assert (ROOT / icon["src"].removeprefix("./")).is_file(), f"Missing PWA icon: {icon['src']}"
+for offline_file in ("./index.html", "./manifest.webmanifest", "./privacy.html", "./terms.html", "./icon.svg"):
+    assert offline_file in SERVICE_WORKER, f"Offline cache entry missing: {offline_file}"
+assert '">\\n<meta name="theme-color"' not in HTML, "Malformed literal newline in document head"
 
 scripts = re.findall(r"<script>(.*?)</script>", HTML, flags=re.S)
 assert scripts, "No inline application script found"
